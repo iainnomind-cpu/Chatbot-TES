@@ -932,46 +932,70 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         const partesRespuesta = respuesta
           .split("\n\n")
           .filter((p) => p.trim() !== "");
+        let ultimaBurbujaGuardada = respuesta;
         for (let i = 0; i < partesRespuesta.length; i++) {
           const burbujaActual = partesRespuesta[i].trim();
           if (!burbujaActual) continue;
 
-          await marcarEscribiendoWrapper(remitenteId);
-          await sleep(
-            Math.min(Math.max(burbujaActual.length * 15, 1000), 3000),
-          );
-
-          const esUltima = i === partesRespuesta.length - 1;
-          if (esUltima && opcionesLimpias) {
-            await enviarRespuesta(
-              remitenteId,
-              burbujaActual,
-              null,
-              opcionesLimpias,
-            );
-          } else {
-            await enviarRespuesta(remitenteId, burbujaActual);
+          // 1. GUARDAR EN DB PRIMERO (así siempre aparece en el Inbox)
+          try {
+            const { error: insertErr } = await supabase.from("mensajes").insert({
+              conversacion_id: convExist.id,
+              remitente: "bot",
+              contenido: burbujaActual,
+              tipo: "texto",
+            });
+            if (insertErr) {
+              console.error("❌ [8/10] ERROR AL INSERTAR MENSAJE BOT EN DB:", insertErr.message, insertErr.details);
+            } else {
+              ultimaBurbujaGuardada = burbujaActual;
+              console.log("✅ [8/10] Mensaje bot guardado en DB:", burbujaActual.substring(0, 50));
+            }
+          } catch (dbErr) {
+            console.error("❌ [8/10] EXCEPCIÓN guardando mensaje bot:", dbErr.message);
           }
 
-          const { error: insertErr } = await supabase.from("mensajes").insert({
-            conversacion_id: convExist.id,
-            remitente: "bot",
-            contenido: burbujaActual,
-            tipo: "texto",
-          });
-          if (insertErr) {
-            console.error("❌ ERROR AL INSERTAR MENSAJE DEL BOT EN DB:", insertErr.message);
+          // 2. ENVIAR POR META API (si falla, el mensaje ya está en el Inbox)
+          try {
+            await marcarEscribiendoWrapper(remitenteId);
+            await sleep(
+              Math.min(Math.max(burbujaActual.length * 15, 1000), 3000),
+            );
+
+            const esUltima = i === partesRespuesta.length - 1;
+            if (esUltima && opcionesLimpias) {
+              await enviarRespuesta(
+                remitenteId,
+                burbujaActual,
+                null,
+                opcionesLimpias,
+              );
+            } else {
+              await enviarRespuesta(remitenteId, burbujaActual);
+            }
+            console.log("✅ [9/10] Mensaje enviado por Meta API (" + plataforma + "):", burbujaActual.substring(0, 50));
+          } catch (sendErr) {
+            console.error("❌ [9/10] ERROR enviando por Meta API (" + plataforma + "):", sendErr.message);
           }
         }
+
+        // Actualizar ultimo_mensaje con la última burbuja realmente guardada
+        await supabase
+          .from("conversaciones")
+          .update({ ultimo_mensaje: ultimaBurbujaGuardada })
+          .eq("id", convExist.id);
       }
     } catch (txtErr) {
-      console.error("❌ Error en el flujo de mensajes:", txtErr.message);
+      console.error("❌ [8/10] Error en el flujo de mensajes:", txtErr.message, txtErr.stack);
     }
 
-    await supabase
-      .from("conversaciones")
-      .update({ ultimo_mensaje: respuesta })
-      .eq("id", convExist.id);
+    // Actualizar ultimo_mensaje final (para flujos con imagen)
+    if (imgUrl) {
+      await supabase
+        .from("conversaciones")
+        .update({ ultimo_mensaje: respuesta.substring(0, 200) })
+        .eq("id", convExist.id);
+    }
     return NextResponse.json({ estado: "procesado" }, { status: 200 });
   } catch (error) {
     console.error("❌ [FATAL] Error Webhook:", error.message);
