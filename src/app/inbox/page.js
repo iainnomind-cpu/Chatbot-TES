@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/componentes/AuthProvider'
-import { fetchAuth } from '@/lib/fetchAuth'
 
 // Emojis frecuentes para el picker rápido
 const EMOJIS_RAPIDOS = ['😊', '👍', '❤️', '🎉', '🙌', '😄', '🤔', '👋', '✅', '🔥', '💪', '📚', '⭐', '🎓', '💯', '😃', '🙏', '👏', '📝', '🏫', '📍', '📞', '✨', '🚀', '👌', '😎', '💬', '📢', '🇬🇧', '🇺🇸', '🗓️']
@@ -119,8 +118,9 @@ export default function PaginaInbox() {
       }));
       
       try {
-        await fetchAuth('/api/mensajes/leer', {
+        await fetch('/api/mensajes/leer', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ conversacion_id: c.id })
         });
         // No necesitamos cargarConversaciones aquí por la actualización optimista
@@ -170,10 +170,7 @@ export default function PaginaInbox() {
         if (chatActivoRef.current && payload.new.conversacion_id === chatActivoRef.current.id) {
           cargarMensajesRef.current?.(chatActivoRef.current.id)
           if (payload.new.remitente === 'usuario') {
-            fetchAuth('/api/mensajes/leer', {
-              method: 'POST',
-              body: JSON.stringify({ conversacion_id: chatActivoRef.current.id })
-            }).then(() => cargarConversacionesRef.current?.()).catch(console.error)
+            supabase.from('mensajes').update({ leido: true }).eq('id', payload.new.id).then(() => cargarConversacionesRef.current?.()).catch(console.error)
           }
           // Bot is typing indicator
           if (payload.new.remitente === 'usuario') {
@@ -218,8 +215,9 @@ export default function PaginaInbox() {
         return conv;
       }));
       // DB update
-      fetchAuth('/api/mensajes/leer', {
+      fetch('/api/mensajes/leer', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversacion_id: chatActivo.id })
       }).catch(err => console.error('Error marcando leido:', err));
     }
@@ -262,29 +260,25 @@ export default function PaginaInbox() {
         payload.tipo = tipoMsg === 'archivo' ? 'document' : 'image'
         payload.url_archivo = fileUrl
       }
-      const res = await fetchAuth('/api/enviar-mensaje', {
+      const res = await fetch('/api/enviar-mensaje', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
       if (res.ok) {
-        const resDb = await fetchAuth('/api/inbox/mensajes', {
-          method: 'POST',
-          body: JSON.stringify({
-            conversacion_id: chatActivo.id,
-            remitente: 'agente',
-            contenido: texto || (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ Imagen'),
-            tipo: tipoMsg === 'archivo' ? 'archivo' : (fileUrl ? 'imagen' : 'texto'),
-            url_archivo: fileUrl || null
-          })
+        await supabase.from('mensajes').insert({
+          conversacion_id: chatActivo.id,
+          remitente: 'humano',
+          contenido: texto || (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ Imagen'),
+          tipo: tipoMsg === 'archivo' ? 'archivo' : (fileUrl ? 'imagen' : 'texto'),
+          url_archivo: fileUrl || null
         })
-        
-        if (!resDb.ok) {
-          console.error('Error guardando en BD:', await resDb.json())
-        } else {
-          // Refrescar UI inmediatamente
-          cargarMensajes(chatActivo.id)
-          cargarConversaciones()
-        }
+        await supabase.from('conversaciones').update({ 
+          ultimo_mensaje: fileUrl ? (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ [Imagen]') : texto, 
+          actualizado_en: new Date().toISOString() 
+        }).eq('id', chatActivo.id)
+        cargarMensajes(chatActivo.id)
+        cargarConversaciones()
       } else {
         const err = await res.json()
         console.error('Error enviando a Meta:', err)
@@ -306,10 +300,7 @@ export default function PaginaInbox() {
       updates.escalation_category = null
     }
 
-    await fetchAuth('/api/inbox/acciones', {
-      method: 'POST',
-      body: JSON.stringify({ accion: 'actualizar_conversacion', id: chatActivo.id, updates })
-    })
+    await supabase.from('conversaciones').update(updates).eq('id', chatActivo.id)
     setChatActivo(prev => ({ ...prev, ...updates }))
     setToggling(false)
   }
@@ -322,10 +313,7 @@ export default function PaginaInbox() {
       escalation_reason: null,
       escalation_category: null
     };
-    await fetchAuth('/api/inbox/acciones', {
-      method: 'POST',
-      body: JSON.stringify({ accion: 'actualizar_conversacion', id: chatActivo.id, updates })
-    })
+    await supabase.from('conversaciones').update(updates).eq('id', chatActivo.id);
     setChatActivo(prev => ({ ...prev, ...updates }));
     setToggling(false);
   }
@@ -333,16 +321,15 @@ export default function PaginaInbox() {
   const crearProspectoRapido = async () => {
     if (!chatActivo) return
     try {
-      const res = await fetchAuth('/api/inbox/acciones', {
-        method: 'POST',
-        body: JSON.stringify({
-          accion: 'crear_prospecto',
-          nombre: 'Interesado',
-          telefono: chatActivo.id_plataforma,
-          conversacion_id: chatActivo.id
-        })
-      })
-      if (!res.ok) throw new Error((await res.json()).error)
+      const { data: nuevoP, error } = await supabase.from('prospectos').insert({
+        nombre: 'Interesado',
+        telefono: chatActivo.id_plataforma,
+        estado: 'nuevo'
+      }).select('*').single()
+      
+      if (error) throw error
+      
+      await supabase.from('conversaciones').update({ prospecto_id: nuevoP.id }).eq('id', chatActivo.id)
       await cargarConversaciones()
       alert('Prospecto creado y vinculado correctamente.')
     } catch (err) {
@@ -357,15 +344,8 @@ export default function PaginaInbox() {
       return
     }
     try {
-      const res = await fetchAuth('/api/inbox/acciones', {
-        method: 'POST',
-        body: JSON.stringify({
-          accion: 'actualizar_prospecto',
-          prospecto_id: chatActivo.prospectos.id,
-          updates: { estado: nuevoEstado }
-        })
-      })
-      if (!res.ok) throw new Error((await res.json()).error)
+      const { error } = await supabase.from('prospectos').update({ estado: nuevoEstado }).eq('id', chatActivo.prospectos.id)
+      if (error) throw error
       await cargarConversaciones()
     } catch (err) {
       console.error(err)
@@ -390,7 +370,7 @@ export default function PaginaInbox() {
     }
 
     try {
-      // 1. Ver si ya existe (lectura, OK con anon)
+      // 1. Ver si ya existe la conversación
       const { data: existing } = await supabase
         .from('conversaciones')
         .select('*, prospectos(*)')
@@ -406,35 +386,37 @@ export default function PaginaInbox() {
         return
       }
 
-      // 2. Crear conversación via API segura
-      const resConv = await fetchAuth('/api/inbox/acciones', {
-        method: 'POST',
-        body: JSON.stringify({
-          accion: 'crear_conversacion',
-          plataforma: 'whatsapp',
-          id_plataforma: telLimpio,
-          asignado_a_humano: true,
-          ultimo_mensaje: mensajeInicial
-        })
-      })
-      const nuevaC = await resConv.json()
-      if (!resConv.ok) throw new Error(nuevaC.error)
+      // 2. Si no existe, ver si hay un prospecto huérfano con ese número
+      const { data: prosExist } = await supabase
+        .from('prospectos')
+        .select('*')
+        .eq('telefono', telLimpio)
+        .maybeSingle()
 
-      // 3. Enviar el mensaje inicial real por WhatsApp
-      await fetchAuth('/api/enviar-mensaje', {
+      // 3. Crear la conversación (con o sin prospecto)
+      const { data: nuevaC, error: cError } = await supabase.from('conversaciones').insert({ 
+        prospecto_id: prosExist ? prosExist.id : null, 
+        plataforma: 'whatsapp', 
+        id_plataforma: telLimpio,
+        asignado_a_humano: true,
+        ultimo_mensaje: mensajeInicial
+      }).select('*, prospectos(*)').single()
+      
+      if (cError) throw cError
+
+      // 4. Enviar el mensaje inicial real por WhatsApp
+      await fetch('/api/enviar-mensaje', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: telLimpio, text: mensajeInicial, plataforma: 'whatsapp' })
       })
 
-      // 4. Guardar el mensaje en la base de datos via API segura
-      await fetchAuth('/api/inbox/mensajes', {
-        method: 'POST',
-        body: JSON.stringify({
-          conversacion_id: nuevaC.id,
-          remitente: 'humano',
-          contenido: mensajeInicial,
-          tipo: 'texto'
-        })
+      // 5. Guardar el mensaje en la base de datos
+      await supabase.from('mensajes').insert({
+        conversacion_id: nuevaC.id,
+        remitente: 'humano',
+        contenido: mensajeInicial,
+        tipo: 'texto'
       })
 
       await cargarConversaciones()
@@ -504,14 +486,7 @@ export default function PaginaInbox() {
 
   const guardarNotaInterna = async (idProspecto, nota) => {
     try {
-      await fetchAuth('/api/inbox/acciones', {
-        method: 'POST',
-        body: JSON.stringify({
-          accion: 'actualizar_prospecto',
-          prospecto_id: idProspecto,
-          updates: { notas_internas: nota }
-        })
-      })
+      await supabase.from('prospectos').update({ notas_internas: nota }).eq('id', idProspecto)
       if (chatActivo?.prospectos) {
         cargarProspectosRelacionados(chatActivo.id_plataforma)
       }
@@ -902,15 +877,14 @@ export default function PaginaInbox() {
                   const ubicacion = '🏫 Total English School\n📍 Av. Constitución 1599, Jardines Vista Hermosa IV, Colima\n🗺️ https://www.google.com/maps/search/?api=1&query=Total+English+School+Colima\n🕒 Lun-Vie 2-9pm | Sáb 8am-2pm'
                   if (!confirm('¿Enviar ubicación al cliente?')) return
                   try {
-                    const res = await fetchAuth('/api/enviar-mensaje', {
+                    const res = await fetch('/api/enviar-mensaje', {
                       method: 'POST',
-                      body: JSON.stringify({ to: chatActivo.id_plataforma, text: ubicacion, plataforma: 'whatsapp' })
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ to: chatActivo.id_plataforma, text: ubicacion, plataforma: chatActivo.plataforma || 'whatsapp' })
                     })
                     if (res.ok) {
-                      await fetchAuth('/api/inbox/mensajes', {
-                        method: 'POST',
-                        body: JSON.stringify({ conversacion_id: chatActivo.id, remitente: 'humano', contenido: ubicacion, tipo: 'texto' })
-                      })
+                      await supabase.from('mensajes').insert({ conversacion_id: chatActivo.id, remitente: 'humano', contenido: ubicacion, tipo: 'texto' })
+                      await supabase.from('conversaciones').update({ ultimo_mensaje: '📍 Ubicación enviada', actualizado_en: new Date().toISOString() }).eq('id', chatActivo.id)
                       cargarMensajes(chatActivo.id)
                       alert('📍 Ubicación enviada correctamente')
                     }
