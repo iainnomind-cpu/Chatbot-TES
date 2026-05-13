@@ -14,7 +14,7 @@ export async function POST(solicitud) {
       const pageToken = process.env.META_PAGE_TOKEN;
       if (!pageToken) return NextResponse.json({ error: 'Falta configurar META_PAGE_TOKEN en el servidor' }, { status: 500 });
       
-      const url = `https://graph.facebook.com/v18.0/me/messages`;
+      const url = `https://graph.facebook.com/v20.0/me/messages`;
       let payload = {
         recipient: { id: to },
         message: {}
@@ -45,7 +45,7 @@ export async function POST(solicitud) {
 
     const token = process.env.META_WHATSAPP_TOKEN
     const phoneId = process.env.META_PHONE_NUMBER_ID
-    const url = `https://graph.facebook.com/v18.0/${phoneId}/messages`
+    const url = `https://graph.facebook.com/v20.0/${phoneId}/messages`
 
     const payload = {
       messaging_product: 'whatsapp',
