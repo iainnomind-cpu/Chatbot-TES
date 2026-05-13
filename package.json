@@ -1,0 +1,32 @@
+{
+  "name": "total-english-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.41",
+    "@supabase/supabase-js": "^2.99.2",
+    "ai": "^6.0.116",
+    "axios": "^1.13.6",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "next": "16.2.0",
+    "openai": "^6.32.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-resizable-panels": "^4.10.0",
+    "resend": "^6.11.0",
+    "vercel": "^52.2.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.0",
+    "tailwindcss": "^4"
+  }
+}
