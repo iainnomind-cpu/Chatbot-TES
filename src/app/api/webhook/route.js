@@ -843,8 +843,10 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     }
 
     // 8. ENVIAR TEXTO E IMAGEN (Lógica agrupada)
+    console.log("📤 [8/10] Enviando respuesta — plataforma:", plataforma, "| tieneImagen:", !!imgUrl, "| respuesta:", respuesta?.substring(0, 80));
     try {
       if (imgUrl) {
+        console.log("🖼️ [8/10] FLUJO CON IMAGEN — URL:", imgUrl);
         // LÓGICA CON IMAGEN: Enviar recomendación como pie de foto (caption)
         const partesRespuesta = respuesta
           .split("\n\n")
@@ -865,26 +867,28 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
         // Enviar "Un momento..." como texto separado si existe
         if (textoIntro) {
-          await marcarEscribiendoWrapper(remitenteId);
-          await sleep(1500);
-          await enviarRespuesta(remitenteId, textoIntro);
-          await supabase
-            .from("mensajes")
-            .insert({
-              conversacion_id: convExist.id,
-              remitente: "bot",
-              contenido: textoIntro,
-              tipo: "texto",
-            });
+          // Guardar en DB primero
+          await supabase.from("mensajes").insert({
+            conversacion_id: convExist.id,
+            remitente: "bot",
+            contenido: textoIntro,
+            tipo: "texto",
+          });
+          // Luego enviar por Meta
+          try {
+            await marcarEscribiendoWrapper(remitenteId);
+            await sleep(1500);
+            const introOk = await enviarRespuesta(remitenteId, textoIntro);
+            console.log("📤 [8/10] Intro enviada:", introOk ? "OK" : "FALLÓ");
+          } catch (e) {
+            console.error("❌ [8/10] Error enviando intro:", e.message);
+          }
         }
 
         const limiteCaption = 1000;
 
         if (textoCaption && textoCaption.length > limiteCaption) {
-          // 1. Enviar la imagen sin texto
-          await marcarEscribiendoWrapper(remitenteId);
-          await sleep(2000);
-          await enviarRespuesta(remitenteId, null, imgUrl);
+          // 1. Guardar imagen en DB
           await supabase.from("mensajes").insert({
             conversacion_id: convExist.id,
             remitente: "bot",
@@ -892,22 +896,34 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             tipo: "imagen",
             url_archivo: imgUrl,
           });
+          // Enviar imagen por Meta
+          try {
+            await marcarEscribiendoWrapper(remitenteId);
+            await sleep(2000);
+            const imgOk = await enviarRespuesta(remitenteId, null, imgUrl);
+            console.log("🖼️ [8/10] Imagen enviada por Meta:", imgOk ? "OK" : "FALLÓ");
+          } catch (e) {
+            console.error("❌ [8/10] Error enviando imagen:", e.message);
+          }
 
-          // 2. Enviar el texto largo como un mensaje separado
-          await marcarEscribiendoWrapper(remitenteId);
-          await sleep(1500);
-          await enviarRespuesta(remitenteId, textoCaption);
+          // 2. Guardar texto en DB
           await supabase.from("mensajes").insert({
             conversacion_id: convExist.id,
             remitente: "bot",
             contenido: textoCaption,
             tipo: "texto",
           });
+          // Enviar texto por Meta
+          try {
+            await marcarEscribiendoWrapper(remitenteId);
+            await sleep(1500);
+            const txtOk = await enviarRespuesta(remitenteId, textoCaption);
+            console.log("📤 [8/10] Texto largo enviado:", txtOk ? "OK" : "FALLÓ");
+          } catch (e) {
+            console.error("❌ [8/10] Error enviando texto:", e.message);
+          }
         } else {
-          // Enviar la imagen con la recomendación como caption
-          await marcarEscribiendoWrapper(remitenteId);
-          await sleep(2000);
-          await enviarRespuesta(remitenteId, textoCaption || null, imgUrl);
+          // Guardar imagen+caption en DB
           await supabase.from("mensajes").insert({
             conversacion_id: convExist.id,
             remitente: "bot",
@@ -915,17 +931,25 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             tipo: "imagen",
             url_archivo: imgUrl,
           });
+          // Enviar por Meta
+          try {
+            await marcarEscribiendoWrapper(remitenteId);
+            await sleep(2000);
+            const imgOk = await enviarRespuesta(remitenteId, textoCaption || null, imgUrl);
+            console.log("🖼️ [8/10] Imagen+caption enviada:", imgOk ? "OK" : "FALLÓ");
+          } catch (e) {
+            console.error("❌ [8/10] Error enviando imagen+caption:", e.message);
+          }
         }
 
-        // Si hay botones (Visita/Llamada), enviarlos como mensaje separado DESPUÉS de la imagen
+        // Si hay botones, enviarlos como mensaje separado DESPUÉS de la imagen
         if (opcionesLimpias) {
-          await sleep(1000);
-          await enviarRespuesta(
-            remitenteId,
-            "¿Qué prefieres? 👇",
-            null,
-            opcionesLimpias,
-          );
+          try {
+            await sleep(1000);
+            await enviarRespuesta(remitenteId, "¿Qué prefieres? 👇", null, opcionesLimpias);
+          } catch (e) {
+            console.error("❌ [8/10] Error enviando opciones:", e.message);
+          }
         }
       } else {
         // LÓGICA SIN IMAGEN: Enviar múltiples burbujas de texto
@@ -1013,11 +1037,12 @@ async function obtenerImagenCDN(nombreArchivo) {
   )
     return null;
 
-  // Solución Definitiva: Usar GitHub Raw como CDN público puro.
-  // Esto evade cualquier bloqueo de Vercel Edge o Supabase bot-protection que Meta estuviera sufriendo.
   const archivoLimpio = nombreArchivo.trim();
-  const githubCDN = `https://raw.githubusercontent.com/AlexTalex06/Total_English/main/public/cursos/${archivoLimpio}`;
-
+  
+  // Intentar desde el repo actual del proyecto
+  const githubCDN = `https://raw.githubusercontent.com/iainnomind-cpu/Chatbot-TES/main/public/cursos/${archivoLimpio}`;
+  
+  console.log("🖼️ URL imagen CDN:", githubCDN);
   return githubCDN;
 }
 
