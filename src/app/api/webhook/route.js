@@ -547,7 +547,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           `👤 *Prospecto:* ${prosExist?.nombre_alumno || prosExist?.nombre || nombrePerfil || "Desconocido"}\n` +
           `📞 *Teléfono:* ${remitenteId}\n` +
           `💬 *Motivo:* El usuario ha solicitado ayuda o el bot no pudo responder.\n\n` +
-          `🔗 *Ver en Inbox:* https://total-english-crm.vercel.app/inbox`;
+          `🔗 *Ver en Inbox:* https://erp-total-english.vercel.app/inbox`;
 
         console.log("📢 Notificación WhatsApp Admin desactivada temporalmente");
         // await enviarRespuesta(adminPhone, msgAdminEscalamiento);
@@ -555,9 +555,9 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
       // Notificación por correo con Resend
       try {
-        // Forzamos el correo verificado del usuario para evitar el error de Resend en modo prueba
-        const adminEmail = "aniygdragon@gmail.com";
-        console.log("📧 Notificando por email (Modo Seguro):", adminEmail);
+        const adminEmail = process.env.ADMIN_EMAIL || "admin@tes.edu";
+        console.log("📧 Notificando por email (PAUSADO TEMPORALMENTE):", adminEmail);
+        /*
         if (adminEmail) {
           const resEmail = await notificarEscalamientoAdmin({
             adminEmail: adminEmail,
@@ -576,6 +576,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             "⚠️ No se encontró email de administrador para enviar alerta de escalamiento.",
           );
         }
+        */
       } catch (e) {
         console.error("❌ Error enviando notificación de correo:", e);
       }
@@ -774,21 +775,22 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         const nivelFinal = prosExist.nivel || datos.nivel || "No especificado";
 
         const msgAdmin =
-          `🇬🇧 *¡NUEVA CITA AGENDADA EN TOTAL ENGLISH!* 🇬🇧\n\n` +
+          `🏫 *¡NUEVA CITA AGENDADA EN TES!* 🏫\n\n` +
           `👤 *Alumno:* ${nombreFinal}\n` +
           `📅 *Fecha:* ${fCitaStr}\n` +
           `⏰ *Hora:* ${datos.hora_cita || "16:00"}\n` +
           `📚 *Curso:* ${cursoFinal}\n` +
           `📊 *Nivel:* ${nivelFinal}\n\n` +
-          `🔗 *Ver en Citas:* https://total-english-crm.vercel.app/citas`;
+          `🔗 *Ver en Citas:* https://erp-total-english.vercel.app/citas`;
 
         console.log("📢 Notificación WhatsApp Admin desactivada temporalmente");
         // await enviarRespuesta(adminPhone, msgAdmin);
 
         // Notificación por Email (Modo Seguro para Resend)
         try {
-          const emailAdmin = "aniygdragon@gmail.com";
-          console.log("📧 Notificando cita por email a:", emailAdmin);
+          const emailAdmin = process.env.ADMIN_EMAIL || "admin@tes.edu";
+          console.log("📧 Notificando cita por email a (PAUSADO TEMPORALMENTE):", emailAdmin);
+          /*
           await notificarCitaAdmin({
             adminEmail: emailAdmin,
             nombreAlumno: nombreFinal,
@@ -797,6 +799,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             curso: cursoFinal,
             nivel: nivelFinal,
           });
+          */
         } catch (eMailErr) {
           console.error("❌ Error enviando email de cita:", eMailErr);
         }
@@ -812,7 +815,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         // Dominio de producción - Meta necesita una URL pública accesible
         const origin =
           process.env.NEXT_PUBLIC_BASE_URL ||
-          "https://total-english.vercel.app";
+          "https://erp-total-english.vercel.app";
         imagenUrl = `${origin}/cursos/${datos.imagen}`;
       }
       console.log("🖼️ Imagen URL construida:", imagenUrl);
