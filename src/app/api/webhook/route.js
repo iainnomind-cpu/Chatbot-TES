@@ -121,6 +121,14 @@ export async function POST(solicitud) {
     remitenteId = String(remitenteId);
     console.log("✅ [3/10] MENSAJE ACEPTADO — plataforma:", plataforma, "| remitente:", remitenteId, "| texto:", texto.substring(0, 80));
 
+    if (plataforma === "messenger" || plataforma === "instagram") {
+      const nombreMeta = await obtenerNombrePerfilMeta(remitenteId, plataforma);
+      if (nombreMeta && nombreMeta !== "Prospecto") {
+        nombrePerfil = nombreMeta;
+        console.log("👤 Nombre extraído de Meta API:", nombrePerfil);
+      }
+    }
+
     let enviarRespuesta = async (to, mensaje, imagen = null, opciones = null) => {
       return await enviarMensajeMetaAPI(to, mensaje, imagen, opciones, plataforma);
     };
@@ -600,12 +608,13 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     if (datos && Object.keys(datos).length > 0) {
       try {
         if (!prosExist) {
-          // Crear Prospecto solo si tenemos datos mínimos (Edad, Nivel o Horario)
+          // Crear Prospecto solo si tenemos datos mínimos (Edad, Nivel o Horario) o si ya extrajimos el nombre de Meta
           if (
             datos.edad ||
             datos.nivel ||
             datos.horario ||
-            datos.nombre_alumno
+            datos.nombre_alumno ||
+            (nombrePerfil !== "Prospecto")
           ) {
             const { data: nuevoP } = await supabase
               .from("prospectos")
@@ -1061,6 +1070,26 @@ async function obtenerImagenCDN(nombreArchivo) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function obtenerNombrePerfilMeta(id, plataforma) {
+  try {
+    const token = process.env.META_PAGE_TOKEN;
+    if (!token || !id || id.length < 5) return "Prospecto";
+    const campos = plataforma === "messenger" ? "first_name,last_name" : "name";
+    const url = `https://graph.facebook.com/v20.0/${id}?fields=${campos}&access_token=${token}`;
+    const res = await axios.get(url);
+    if (res.data) {
+      if (plataforma === "messenger") {
+        return `${res.data.first_name || ""} ${res.data.last_name || ""}`.trim() || "Prospecto";
+      } else {
+        return res.data.name || "Prospecto";
+      }
+    }
+  } catch (e) {
+    console.error("❌ Error obteniendo perfil de Meta:", e.response?.data?.error?.message || e.message);
+  }
+  return "Prospecto";
+}
 
 async function marcarEscribiendoMetaAPI(to, plataforma) {
   try {
