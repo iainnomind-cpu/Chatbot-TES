@@ -94,8 +94,18 @@ export async function POST(solicitud) {
         } else {
           console.log("⏭️ [2/10] Mensaje ignorado — is_echo:", evento.message?.is_echo, "| no message:", !evento.message);
         }
+      } else if (entrada?.changes && entrada.changes.length > 0) {
+        // Soporte para el botón de "Probar" en Meta for Developers
+        const valor = entrada.changes[0].value;
+        if (valor && valor.message) {
+          plataforma = cuerpo.object === "page" ? "messenger" : "instagram";
+          remitenteId = String(valor.sender.id);
+          mensajeId = valor.message.mid || "test_mid_" + Date.now();
+          texto = valor.message.text || "Mensaje de prueba";
+          console.log("✅ [2/10] Parseado TEST OK — plataforma:", plataforma, "| remitenteId:", remitenteId, "| texto:", texto);
+        }
       } else {
-        console.log("⏭️ [2/10] Sin array messaging — posible evento de webhook no-message (read, delivery, etc.)");
+        console.log("⏭️ [2/10] Sin array messaging ni changes — evento ignorado");
       }
     }
 
