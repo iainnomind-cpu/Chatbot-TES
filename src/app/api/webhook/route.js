@@ -100,7 +100,8 @@ export async function POST(solicitud) {
         if (valor && valor.message) {
           plataforma = cuerpo.object === "page" ? "messenger" : "instagram";
           remitenteId = String(valor.sender.id);
-          mensajeId = valor.message.mid || "test_mid_" + Date.now();
+          // Meta siempre envía "random_mid", lo forzamos a ser único para que no lo bloquee el filtro anti-duplicados
+          mensajeId = (valor.message.mid === "random_mid") ? "test_mid_" + Date.now() : (valor.message.mid || "test_mid_" + Date.now());
           texto = valor.message.text || "Mensaje de prueba";
           console.log("✅ [2/10] Parseado TEST OK — plataforma:", plataforma, "| remitenteId:", remitenteId, "| texto:", texto);
         }
