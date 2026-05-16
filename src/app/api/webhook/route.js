@@ -137,42 +137,78 @@ export async function POST(solicitud) {
       return await marcarEscribiendoMetaAPI(to, plataforma);
     };
 
-    // 1 & 2. Conversación y Prospecto: Buscar o Crear
-    // Buscar con ambas variantes (52 y 521)
+    // === PASO 1: VERIFICAR DUPLICADO DE MENSAJE ANTES DE TODO ===
+    // Esto previene race conditions cuando Meta envía el mismo webhook 2 veces
+    const { data: existeMsg } = await supabase
+      .from("mensajes")
+      .select("id")
+      .eq("id_mensaje_meta", mensajeId)
+      .maybeSingle();
+    if (existeMsg) {
+      console.log("⏭️ [4/10] Mensaje duplicado — mid:", mensajeId, "ya existe en DB");
+      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
+    }
+
+    // === PASO 2: BUSCAR CONVERSACIÓN EXISTENTE ===
     const variantesId = remitenteId.startsWith("52")
       ? [remitenteId, remitenteId.replace("52", "521")]
       : [remitenteId];
     console.log("🔍 [4/10] Buscando conversación — variantes:", variantesId, "| plataforma:", plataforma);
-    let { data: convExist, error: errBuscarConv } = await supabase
+
+    // Buscar TODAS las conversaciones para este id+plataforma (para consolidar duplicados)
+    let { data: todasConvs, error: errBuscarConv } = await supabase
       .from("conversaciones")
-      .select("*")
+      .select("*, prospectos(*)")
       .in("id_plataforma", variantesId)
       .eq("plataforma", plataforma)
-      .maybeSingle();
+      .order("creado_en", { ascending: true });
     if (errBuscarConv) console.error("❌ [4/10] ERROR buscando conversación:", errBuscarConv.message);
-    console.log("🔍 [4/10] Resultado:", convExist ? `Encontrada (id: ${convExist.id})` : "No encontrada — se creará");
 
-    // --- DETECCIÓN DE CONTEXTO PARA NUEVOS PROSPECTOS ---
-    // El bot ahora responde a CUALQUIER mensaje entrante, sin filtro de keywords.
-    // Esto evita perder prospectos que escriben "buenas tardes", "hey", "quiero aprender", etc.
-    // --------------------------------------------------------
-
-    // --- LÓGICA DE PROSPECTO POSPUESTA ---
+    let convExist = null;
     let prosExist = null;
 
-    // 1. Buscar si la conversación ya tiene un prospecto vinculado
-    if (convExist && convExist.prospecto_id) {
+    if (todasConvs && todasConvs.length > 0) {
+      // Tomar la conversación más antigua como la principal
+      convExist = todasConvs[0];
+      prosExist = todasConvs[0].prospectos || null;
+
+      // Si hay duplicadas, consolidar: mover mensajes a la principal y borrar las demás
+      if (todasConvs.length > 1) {
+        console.log(`🔄 [4/10] Consolidando ${todasConvs.length} conversaciones duplicadas`);
+        for (let i = 1; i < todasConvs.length; i++) {
+          const dup = todasConvs[i];
+          // Mover mensajes de la duplicada a la principal
+          await supabase
+            .from("mensajes")
+            .update({ conversacion_id: convExist.id })
+            .eq("conversacion_id", dup.id);
+          // Si la duplicada tiene prospecto y la principal no, adoptar ese prospecto
+          if (!prosExist && dup.prospectos) {
+            prosExist = dup.prospectos;
+            await supabase
+              .from("conversaciones")
+              .update({ prospecto_id: prosExist.id })
+              .eq("id", convExist.id);
+          }
+          // Borrar la conversación duplicada
+          await supabase.from("conversaciones").delete().eq("id", dup.id);
+        }
+      }
+      console.log("🔍 [4/10] Resultado:", `Encontrada (id: ${convExist.id})`);
+    } else {
+      console.log("🔍 [4/10] Resultado: No encontrada — se creará");
+    }
+
+    // === PASO 3: BUSCAR PROSPECTO HUÉRFANO ===
+    if (convExist && convExist.prospecto_id && !prosExist) {
       const { data: pData } = await supabase
         .from("prospectos")
         .select("*")
         .eq("id", convExist.prospecto_id)
         .maybeSingle();
-      if (pData) {
-        prosExist = pData;
-      }
+      if (pData) prosExist = pData;
     }
 
-    // 2. Si no tiene en la conversación, buscar por teléfono por si acaso existe uno huérfano
     if (!prosExist) {
       const { data: prosPorTel } = await supabase
         .from("prospectos")
@@ -183,7 +219,6 @@ export async function POST(solicitud) {
         .maybeSingle();
       if (prosPorTel) {
         prosExist = prosPorTel;
-        // Si lo encontramos por teléfono, vincularlo a la conversación de una vez
         if (convExist) {
           await supabase
             .from("conversaciones")
@@ -193,56 +228,33 @@ export async function POST(solicitud) {
       }
     }
 
-    // 3. Crear conversación si no existe (SIN prospecto por ahora si no encontramos uno)
+    // === PASO 4: CREAR CONVERSACIÓN SI NO EXISTE ===
     if (!convExist) {
-      // Normalizar ID para búsqueda
-      const searchId = remitenteId.startsWith("52")
-        ? [remitenteId, remitenteId.replace("52", "521")]
-        : [remitenteId];
-
-      const { data: cExist } = await supabase
+      const { data: nuevaC, error: errConv } = await supabase
         .from("conversaciones")
-        .select("*, prospectos(*)")
-        .in("id_plataforma", searchId)
-        .eq("plataforma", plataforma)
-        .maybeSingle();
+        .insert({
+          prospecto_id: prosExist?.id || null,
+          plataforma: plataforma,
+          id_plataforma: remitenteId,
+          nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null,
+        })
+        .select("*")
+        .single();
+      if (errConv) console.error("❌ [5/10] ERROR AL CREAR CONVERSACION:", errConv.message, errConv.details, errConv.hint);
+      else console.log("✅ [5/10] Conversación CREADA:", nuevaC?.id);
+      convExist = nuevaC;
 
-      if (cExist) {
-        convExist = cExist;
-        prosExist = cExist.prospectos;
-      } else {
-        const { data: nuevaC, error: errConv } = await supabase
-          .from("conversaciones")
-          .insert({
-            prospecto_id: null,
-            plataforma: plataforma,
-            id_plataforma: remitenteId,
-          })
-          .select("*")
-          .single();
-        if (errConv) console.error("❌ [5/10] ERROR AL CREAR CONVERSACION:", errConv.message, errConv.details, errConv.hint);
-        else console.log("✅ [5/10] Conversación CREADA:", nuevaC?.id);
-        convExist = nuevaC;
-
-        // Pausa de 2 segundos para el primer mensaje (Bienvenida)
-        await sleep(2000);
-      }
+      // Pausa de 2 segundos para el primer mensaje (Bienvenida)
+      await sleep(2000);
+    } else if (nombrePerfil && nombrePerfil !== "Prospecto") {
+      // Actualizar nombre_contacto si lo extrajimos de Meta
+      await supabase
+        .from("conversaciones")
+        .update({ nombre_contacto: nombrePerfil })
+        .eq("id", convExist.id);
     }
 
-    // Retraso aleatorio (Jitter) de 0 a 1500ms para evitar Race Conditions
-    // cuando Meta envía dos webhooks idénticos al mismo milisegundo por error
-    await sleep(Math.floor(Math.random() * 1500));
-
-    const { data: existeMsg } = await supabase
-      .from("mensajes")
-      .select("id")
-      .eq("id_mensaje_meta", mensajeId)
-      .maybeSingle();
-    if (existeMsg) {
-      console.log("⏭️ [6/10] Mensaje duplicado — mid:", mensajeId, "ya existe en DB");
-      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
-    }
-
+    // === PASO 5: GUARDAR MENSAJE DEL USUARIO ===
     const mensajeInsert = {
       conversacion_id: convExist.id,
       remitente: "usuario",
@@ -252,7 +264,14 @@ export async function POST(solicitud) {
     };
     console.log("💾 [6/10] Guardando mensaje usuario — conv:", convExist.id, "| mid:", mensajeId);
     const { error: errMsgUser } = await supabase.from("mensajes").insert(mensajeInsert);
-    if (errMsgUser) console.error("❌ [6/10] ERROR AL GUARDAR MENSAJE USUARIO:", errMsgUser.message, errMsgUser.details, errMsgUser.hint);
+    if (errMsgUser) {
+      // Si falla por duplicado (race condition tardío), salir silenciosamente
+      if (errMsgUser.message?.includes("duplicate") || errMsgUser.code === "23505") {
+        console.log("⏭️ [6/10] Mensaje duplicado por constraint — mid:", mensajeId);
+        return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
+      }
+      console.error("❌ [6/10] ERROR AL GUARDAR MENSAJE USUARIO:", errMsgUser.message, errMsgUser.details, errMsgUser.hint);
+    }
     else console.log("✅ [6/10] Mensaje usuario guardado OK");
     await supabase
       .from("conversaciones")

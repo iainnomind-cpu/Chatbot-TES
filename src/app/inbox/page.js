@@ -597,7 +597,7 @@ export default function PaginaInbox() {
                 <div className="relative">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm uppercase relative ${isActive ? 'bg-[#1e3a8a] text-white' : 'bg-gradient-to-br from-slate-500 to-slate-700 text-white'
                     }`}>
-                    {(conv.prospectos?.nombre_alumno || conv.prospectos?.nombre)?.[0] || '?'}
+                    {(conv.prospectos?.nombre_alumno || conv.prospectos?.nombre || conv.nombre_contacto)?.[0] || '?'}
                     {/* Platform Icon Badge */}
                     <div className={`absolute -bottom-1 -right-1 w-[22px] h-[22px] rounded-full flex items-center justify-center shadow-sm text-white ${
                       conv.plataforma === 'messenger' ? 'bg-[#0084FF]' :
@@ -630,7 +630,7 @@ export default function PaginaInbox() {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-baseline mb-0.5 group/header">
                     <h3 className={`text-[14px] truncate ${unreadCount > 0 ? 'font-bold text-[#111b21]' : 'font-medium text-[#111b21]'}`}>
-                      {conv.prospectos?.nombre_alumno || conv.prospectos?.nombre || conv.id_plataforma}
+                      {conv.prospectos?.nombre_alumno || conv.prospectos?.nombre || conv.nombre_contacto || conv.id_plataforma}
                     </h3>
                     <div className="flex items-center gap-1">
                       <span className={`text-[11px] shrink-0 ml-2 ${unreadCount > 0 ? 'text-[#25D366] font-bold' : 'text-slate-400'}`}>
@@ -671,11 +671,11 @@ export default function PaginaInbox() {
             <div className="flex items-center gap-3">
               <button onClick={() => setChatActivo(null)} className="md:hidden material-symbols-outlined text-slate-500 mr-1">arrow_back</button>
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0f172a] to-[#1e3a8a] text-white flex items-center justify-center font-bold text-sm uppercase">
-                {(chatActivo.prospectos?.nombre_alumno || chatActivo.prospectos?.nombre)?.[0] || '?'}
+                {(chatActivo.prospectos?.nombre_alumno || chatActivo.prospectos?.nombre || chatActivo.nombre_contacto)?.[0] || '?'}
               </div>
               <div className="flex flex-col">
                 <span className="font-bold text-[#1e293b] text-[15px]">
-                  {chatActivo.prospectos?.nombre_alumno || chatActivo.prospectos?.nombre || chatActivo.id_plataforma}
+                  {chatActivo.prospectos?.nombre_alumno || chatActivo.prospectos?.nombre || chatActivo.nombre_contacto || chatActivo.id_plataforma}
                 </span>
                 <span className="text-[11px] text-slate-400 font-medium">
                   {chatActivo.id_plataforma} • {chatActivo.prospectos?.estado?.toUpperCase() || 'NUEVO'}
