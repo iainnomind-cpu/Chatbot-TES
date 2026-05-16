@@ -126,8 +126,11 @@ export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plat
     const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const diaActualStr = dias[hoy.getDay()];
 
+    const esNombreGenerico = !nombreUsuario || ['prospecto', 'desconocido'].includes(String(nombreUsuario).toLowerCase());
+    const nombreSaludo = esNombreGenerico ? '' : ` ${nombreUsuario}`;
+
     const promptFinal = MEGA_SYSTEM_PROMPT
-      .replace('{Nombre}', nombreUsuario || 'amigo(a)')
+      .replace(' {Nombre}', nombreSaludo)
       .replace('{CONTEXTO_CRM}', mensajeSistemaCrm)
       .replace('{TABLA_LOGICA_CURSOS}', tablaDinamicaCursos)
       .replace('{FECHA_ACTUAL}', `${diaActualStr}, ${fechaActualStr} a las ${horaActualStr}`);
