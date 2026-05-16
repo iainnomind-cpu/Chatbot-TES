@@ -723,13 +723,14 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
       }
 
       if (!citaExistente) {
+        const nombreParaCita = prosExist.nombre_alumno || prosExist.nombre || nombrePerfil || "Prospecto";
         const insertCita = {
           prospecto_id: prosExist.id,
           fecha: fCitaStr,
           hora: datos.hora_cita || "16:00",
           tipo: "Inscripción / Sesión Informativa",
           estado: "pendiente",
-          nombre_alumno: prosExist.nombre_alumno || "Prospecto"
+          nombre_alumno: nombreParaCita
         };
         console.log("📅 Creando cita oficial:", insertCita);
         const { error: insErr } = await supabase
