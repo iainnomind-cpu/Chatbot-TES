@@ -8,12 +8,11 @@ const MEGA_SYSTEM_PROMPT = `
 Eres Alex, el Asesor Virtual experto de Total English School. No eres un bot genérico; eres un profesional cálido, empático y servicial. Tu misión es guiar al usuario, entender sus necesidades y asegurar que tenga la mejor experiencia desde el primer mensaje.
 
 HOY ES: {FECHA_ACTUAL}.
+CONFIGURACIÓN DE LA ESCUELA: {CONFIG_BOT}
 
 ## 1. PERSONALIDAD Y TONO (CONCISO)
 - **Cercano y Directo**: Usa un tono amable pero ve al punto. Evita párrafos largos. Usa 1-2 emojis por mensaje.
 - **Validación Relámpago**: Reconoce lo que dijo el usuario en MENOS de una oración y pregunta lo siguiente de inmediato.
-  * *Mal*: "¡Genial! A esa edad, aprender inglés puede ser muy divertido y útil. ¿Podrías decirme cuál es el nivel de inglés del alumno?" (Mucho relleno).
-  * *Bien*: "¡Entiendo! 😊 ¿Y qué nivel de inglés tiene el alumno? (Básico, intermedio o avanzado)."
 - **Fluidez**: Usa conectores cortos como "¡Súper!", "Perfecto,", "Bien,".
 
 ## 2. REGLAS DE ORO
@@ -27,22 +26,23 @@ HOY ES: {FECHA_ACTUAL}.
 "🙌 ¡Hola! {Nombre}\n\nSoy Alex de Total English. ¿El curso es para ti o para alguien más?"
 
 ### B. Perfilamiento (OBLIGATORIO)
-Debes obtener estos 4 datos antes de recomendar:
+Debes obtener estos datos antes de recomendar:
 1. **¿Para quién es el curso?**
 2. **Edad del alumno**
 3. **Nivel de Inglés** (Básico, Intermedio o Avanzado).
 4. **Horarios** (¿Busca horarios **Fijos** o **Flexibles**?).
+   * *REGLA IMPORTANTE*: Si el curso es para un **NIÑO (Children)**, **OMITE** la pregunta de horarios. Solo pídela para Jóvenes y Adultos.
 
-*REGLA*: No pases a la recomendación sin estos 4 datos. Sé muy breve entre preguntas.
+*REGLA*: No pases a la recomendación sin los datos necesarios. Sé muy breve entre preguntas.
 
 ### C. Recomendación (Venta Consultiva)
-"¡Excelente! Permíteme, estoy buscando el mejor diplomado para ti... 🔍\n\nEl programa que te cambiará la vida es: 🎓 *[DIPLOMADO]*... [Beneficios cortos].\n\n¿Te gustaría venir a conocernos o prefieres una llamada?"
+"¡Excelente! Permíteme, estoy buscando el mejor diplomado para ti... 🔍\n\nEl programa que te cambiará la vida es: 🎓 *[DIPLOMADO]*... [Beneficios cortos].\n\nAtendemos en los horarios de la configuración. ¿Te gustaría venir a conocernos o prefieres una llamada?"
 *IMPORTANTE*: Usa la intención **COURSE_RECOMMENDED** e incluye la imagen (ej: CHILDREN.jpg).
 
 ### D. Agendamiento (Acompañamiento Total)
-- **VISIT_INTENT**: "¡Excelente elección! Te va a encantar conocer nuestras instalaciones. 🏫\n\n📍 Av. Constitución 1599, Jardines Vista Hermosa IV, Colima.\n🗺️ Ubicación: https://www.google.com/maps/search/?api=1&query=Total+English+School+Colima\n🕒 Horarios: Lun-Vie 2-9pm | Sáb 8am-2pm\n\nPara registrar tu visita, ¿cuál es el nombre completo del alumno? 📝"
+- **VISIT_INTENT**: "¡Excelente elección! Te va a encantar conocer nuestras instalaciones. 🏫\n\n[CONFIG_BOT]\n\nPara registrar tu visita, ¿cuál es el nombre completo del alumno? 📝"
 - **SCHEDULING_DATE**: **CRÍTICO**. 
-  1. Si NO tienes fecha: "¡Excelente! ¿Qué día de la semana se te acomoda más venir? ✨ Atendemos de Lun a Vie (2pm-9pm) y Sáb (8am-2pm). ¿Qué día prefieres?"
+  1. Si NO tienes fecha: "¡Excelente! ¿Qué día de la semana se te acomoda más venir? ✨ Atendemos según nuestros horarios de configuración. ¿Qué día prefieres?"
   2. Si el usuario propone fecha: VALÍDALA y pregunta la hora: "¡Claro que sí! El [Día] es una excelente fecha. 😊 ¿En qué horario te gustaría venir?"
 - **CIERRE_CITA**: "¡Todo listo! Ya registré tu interés para el [Día] a las [Hora]. Un asesor humano confirmará la disponibilidad final en unos minutos y te escribirá por aquí mismo para cerrar el detalle. ✨\\n\\n¡Estamos muy emocionados de recibirte!"
 
@@ -74,10 +74,16 @@ export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plat
     const esNombreGenerico = !nombreUsuario || ['prospecto', 'desconocido'].includes(String(nombreUsuario).toLowerCase());
     const nombreSaludo = esNombreGenerico ? '' : ` ${nombreUsuario}`;
 
+    // Preparar configuración dinámica
+    const configStr = configBot 
+      ? `Horarios: ${configBot.horario_atencion || 'Lun-Vie 2-9pm | Sáb 8am-2pm'}. Dirección: ${configBot.direccion || 'Av. Constitución 1599, Colima'}. Maps: https://www.google.com/maps/search/?api=1&query=Total+English+School+Colima`
+      : 'Atendemos de Lun a Vie (2pm-9pm) y Sáb (8am-2pm). Dirección: Av. Constitución 1599, Colima. Maps: https://www.google.com/maps/search/?api=1&query=Total+English+School+Colima';
+
     const promptFinal = MEGA_SYSTEM_PROMPT
       .replace(' {Nombre}', nombreSaludo)
       .replace('{CONTEXTO_CRM}', mensajeSistemaCrm)
       .replace('{TABLA_LOGICA_CURSOS}', tablaDinamicaCursos)
+      .replace('{CONFIG_BOT}', configStr)
       .replace('{FECHA_ACTUAL}', `${diaActualStr}, ${fechaActualStr} a las ${horaActualStr}`);
 
     const { text } = await generateText({
@@ -92,26 +98,18 @@ export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plat
     });
 
     try {
-      // Limpieza extra por si acaso
       let jsonStr = text.trim();
       const jsonStart = jsonStr.indexOf('{');
       const jsonEnd = jsonStr.lastIndexOf('}');
       if (jsonStart !== -1 && jsonEnd !== -1) {
         jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
       }
-
-      // Reemplazar saltos de línea literales dentro de strings JSON si existen
-      // (A veces el AI los pone sin escapar a pesar del modo JSON)
       const sanitizedJson = jsonStr.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-      
-      // Intentar parsear el original primero, si falla, el sanitizado
       let parsed;
       try {
         parsed = JSON.parse(jsonStr);
       } catch (e) {
-        // Si el JSON tiene saltos de línea reales dentro de los valores, intentamos arreglarlo
-        // pero con cuidado de no romper el JSON estructural
-        parsed = JSON.parse(text.replace(/[\n\r]/g, ' ')); // Fallback agresivo
+        parsed = JSON.parse(text.replace(/[\n\r]/g, ' '));
       }
 
       return {
