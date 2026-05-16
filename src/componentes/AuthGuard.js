@@ -9,10 +9,13 @@ export default function AuthGuard({ children }) {
   const { autenticado, cargando } = useAuth()
   const pathname = usePathname()
 
-  // Rutas que no requieren login
-  const rutasPublicas = ['/privacidad', '/eliminacion-datos', '/login']
+  // Prioridad máxima: Rutas legales públicas para Meta
+  if (pathname?.startsWith('/privacidad') || pathname?.startsWith('/eliminacion-datos')) {
+    return children
+  }
 
-  if (rutasPublicas.includes(pathname)) {
+  // Rutas que no requieren login pero sí carga de estado
+  if (pathname === '/login') {
     return children
   }
 
