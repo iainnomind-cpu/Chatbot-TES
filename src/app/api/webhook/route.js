@@ -612,13 +612,12 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     if (datos && Object.keys(datos).length > 0) {
       try {
         if (!prosExist) {
-          // Crear Prospecto solo si tenemos datos mínimos (Edad, Nivel o Horario) o si ya extrajimos el nombre de Meta
+          // Crear Prospecto solo si tenemos datos mínimos (Edad, Nivel o Horario)
           if (
             datos.edad ||
             datos.nivel ||
             datos.horario ||
-            datos.nombre_alumno ||
-            (nombrePerfil !== "Prospecto")
+            datos.nombre_alumno
           ) {
             const { data: nuevoP } = await supabase
               .from("prospectos")
