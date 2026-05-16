@@ -1081,7 +1081,7 @@ async function marcarEscribiendoMetaAPI(to, plataforma) {
   }
 }
 
-async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null, plataforma = "whatsapp") {
+async function enviarRespuesta(to, mensaje, imagen = null, opciones = null, plataforma = "whatsapp") {
   try {
     if (plataforma === "whatsapp") {
       const token = process.env.META_WHATSAPP_TOKEN;
