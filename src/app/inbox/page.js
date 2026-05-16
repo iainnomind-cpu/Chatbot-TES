@@ -515,7 +515,7 @@ export default function PaginaInbox() {
   const mensajesAgrupados = agruparMensajesPorFecha(mensajes)
 
   return (
-    <div className="h-[calc(100vh-65px)] w-full flex overflow-hidden bg-[#eae6df] font-sans" style={{ '--sidebar-width': `${sidebarWidth}px`, '--info-width': `${infoWidth}px` }}>
+    <div className="h-[calc(100vh-65px)] flex overflow-hidden bg-[#eae6df] font-sans w-full max-w-full" style={{ '--sidebar-width': `${sidebarWidth}px`, '--info-width': `${infoWidth}px` }}>
 
       {/* 1. SIDEBAR DE CONVERSACIONES */}
       <div className={`${chatActivo ? 'hidden md:flex' : 'flex'} w-full md:w-[var(--sidebar-width)] bg-white border-r border-slate-200/80 flex-col h-full shrink-0`}>

@@ -157,7 +157,7 @@ export default function PaginaProspectos() {
     : prospectos.filter(p => p.estado === filtroEstado.toLowerCase())
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto flex h-[calc(100vh-65px)] gap-6">
+    <div className="p-4 md:p-8 w-full flex h-[calc(100vh-65px)] gap-6 overflow-hidden">
       
       {/* Columna Principal - Lista */}
       <div className={`flex-1 flex flex-col ${prospectoSeleccionado ? 'hidden lg:flex' : 'flex'}`}>

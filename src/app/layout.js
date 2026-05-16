@@ -24,9 +24,11 @@ export default function LayoutRaiz({ children }) {
           <NotificationProvider>
             <AuthGuard>
               <BarraLateral />
-              <main className="md:ml-72 min-h-screen pb-20 md:pb-0">
+              <main className="md:ml-72 min-h-screen pb-20 md:pb-0 flex flex-col overflow-x-hidden">
                 <BarraSuperior />
-                {children}
+                <div className="flex-1 h-full">
+                  {children}
+                </div>
               </main>
             </AuthGuard>
           </NotificationProvider>
