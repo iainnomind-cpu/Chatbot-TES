@@ -137,176 +137,100 @@ export async function POST(solicitud) {
       return await marcarEscribiendoMetaAPI(to, plataforma);
     };
 
-    // === PASO 1: VERIFICAR DUPLICADO DE MENSAJE ANTES DE TODO ===
-    // Esto previene race conditions cuando Meta envía el mismo webhook 2 veces
-    const { data: existeMsg } = await supabase
-      .from("mensajes")
-      .select("id")
-      .eq("id_mensaje_meta", mensajeId)
-      .maybeSingle();
-    if (existeMsg) {
-      console.log("⏭️ [4/10] Mensaje duplicado — mid:", mensajeId, "ya existe en DB");
-      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
-    }
-
-    // === PASO 2: BUSCAR CONVERSACIÓN EXISTENTE ===
+    // === PASO 1: BUSCAR O CREAR CONVERSACIÓN (ATÓMICO) ===
     const variantesId = remitenteId.startsWith("52")
       ? [remitenteId, remitenteId.replace("52", "521")]
       : [remitenteId];
-    console.log("🔍 [4/10] Buscando conversación — variantes:", variantesId, "| plataforma:", plataforma);
-
-    // Buscar TODAS las conversaciones para este id+plataforma (para consolidar duplicados)
-    let { data: todasConvs, error: errBuscarConv } = await supabase
+    
+    let convExist = null;
+    let { data: todasConvs } = await supabase
       .from("conversaciones")
       .select("*, prospectos(*)")
       .in("id_plataforma", variantesId)
       .eq("plataforma", plataforma)
       .order("creado_en", { ascending: true });
-    if (errBuscarConv) console.error("❌ [4/10] ERROR buscando conversación:", errBuscarConv.message);
-
-    let convExist = null;
-    let prosExist = null;
 
     if (todasConvs && todasConvs.length > 0) {
-      // Tomar la conversación más antigua como la principal
       convExist = todasConvs[0];
-      prosExist = todasConvs[0].prospectos || null;
-
-      // Si hay duplicadas, consolidar: mover mensajes a la principal y borrar las demás
-      if (todasConvs.length > 1) {
-        console.log(`🔄 [4/10] Consolidando ${todasConvs.length} conversaciones duplicadas`);
-        for (let i = 1; i < todasConvs.length; i++) {
-          const dup = todasConvs[i];
-          // Mover mensajes de la duplicada a la principal
-          await supabase
-            .from("mensajes")
-            .update({ conversacion_id: convExist.id })
-            .eq("conversacion_id", dup.id);
-          // Si la duplicada tiene prospecto y la principal no, adoptar ese prospecto
-          if (!prosExist && dup.prospectos) {
-            prosExist = dup.prospectos;
-            await supabase
-              .from("conversaciones")
-              .update({ prospecto_id: prosExist.id })
-              .eq("id", convExist.id);
-          }
-          // Borrar la conversación duplicada
-          await supabase.from("conversaciones").delete().eq("id", dup.id);
-        }
-      }
-      console.log("🔍 [4/10] Resultado:", `Encontrada (id: ${convExist.id})`);
+      // Si hay duplicadas, las limpiaremos luego de procesar el mensaje para no retrasar la respuesta
     } else {
-      console.log("🔍 [4/10] Resultado: No encontrada — se creará");
-    }
-
-    // === PASO 3: BUSCAR PROSPECTO HUÉRFANO ===
-    if (convExist && convExist.prospecto_id && !prosExist) {
-      const { data: pData } = await supabase
-        .from("prospectos")
-        .select("*")
-        .eq("id", convExist.prospecto_id)
-        .maybeSingle();
-      if (pData) prosExist = pData;
-    }
-
-    if (!prosExist) {
-      const { data: prosPorTel } = await supabase
-        .from("prospectos")
-        .select("*")
-        .eq("telefono", remitenteId)
-        .order("creado_en", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (prosPorTel) {
-        prosExist = prosPorTel;
-        if (convExist) {
-          await supabase
-            .from("conversaciones")
-            .update({ prospecto_id: prosExist.id })
-            .eq("id", convExist.id);
-        }
-      }
-    }
-
-    // === PASO 4: CREAR CONVERSACIÓN SI NO EXISTE ===
-    if (!convExist) {
-      const { data: nuevaC, error: errConv } = await supabase
+      // Intentar crear
+      const { data: nuevaC, error: errC } = await supabase
         .from("conversaciones")
         .insert({
-          prospecto_id: prosExist?.id || null,
-          plataforma: plataforma,
+          plataforma,
           id_plataforma: remitenteId,
-          nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null,
+          nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null
         })
         .select("*")
         .single();
-      if (errConv) console.error("❌ [5/10] ERROR AL CREAR CONVERSACION:", errConv.message, errConv.details, errConv.hint);
-      else console.log("✅ [5/10] Conversación CREADA:", nuevaC?.id);
-      convExist = nuevaC;
-
-      // Anti-duplicado post-creación: esperar y verificar si otro webhook creó una al mismo tiempo
-      await sleep(1000);
-      const { data: checkDups } = await supabase
-        .from("conversaciones")
-        .select("id, creado_en")
-        .eq("id_plataforma", remitenteId)
-        .eq("plataforma", plataforma)
-        .order("creado_en", { ascending: true });
-
-      if (checkDups && checkDups.length > 1) {
-        const principal = checkDups[0];
-        if (principal.id !== convExist.id) {
-          // PERDIMOS LA CARRERA: otro webhook ya creó la conversación principal.
-          // Borrar nuestra conversación duplicada y SALIR COMPLETAMENTE.
-          // El otro webhook se encargará de procesar el mensaje.
-          console.log(`⏭️ [5/10] Webhook duplicado detectado — delegando al proceso principal (${principal.id})`);
-          await supabase.from("conversaciones").delete().eq("id", convExist.id);
-          return NextResponse.json({ estado: "delegado_a_principal" }, { status: 200 });
-        } else {
-          // GANAMOS LA CARRERA: borrar las conversaciones duplicadas de los otros webhooks
-          console.log(`🔄 [5/10] Limpiando ${checkDups.length - 1} conversación(es) duplicada(s)`);
-          for (let i = 1; i < checkDups.length; i++) {
-            await supabase.from("conversaciones").delete().eq("id", checkDups[i].id);
-          }
-        }
+      
+      if (errC) {
+        // Probablemente otro webhook la creó al mismo tiempo, buscar de nuevo
+        const { data: retryC } = await supabase
+          .from("conversaciones")
+          .select("*")
+          .in("id_plataforma", variantesId)
+          .eq("plataforma", plataforma)
+          .maybeSingle();
+        convExist = retryC;
+      } else {
+        convExist = nuevaC;
       }
-
-      // Pausa para el primer mensaje (Bienvenida)
-      await sleep(1500);
-    } else if (nombrePerfil && nombrePerfil !== "Prospecto") {
-      // Actualizar nombre_contacto si lo extrajimos de Meta
-      await supabase
-        .from("conversaciones")
-        .update({ nombre_contacto: nombrePerfil })
-        .eq("id", convExist.id);
     }
 
-    // === PASO 5: GUARDAR MENSAJE DEL USUARIO ===
-    const mensajeInsert = {
+    if (!convExist) {
+      return NextResponse.json({ error: "No se pudo obtener conversación" }, { status: 200 });
+    }
+
+    // === PASO 2: GUARDAR MENSAJE Y BLOQUEAR DUPLICADOS ===
+    const { data: existeMsg } = await supabase
+      .from("mensajes")
+      .select("id")
+      .eq("id_mensaje_meta", mensajeId)
+      .maybeSingle();
+
+    if (existeMsg) {
+      console.log("⏭️ [6/10] Mensaje ya procesado:", mensajeId);
+      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
+    }
+
+    const { error: errInsMsg } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
       remitente: "usuario",
       contenido: texto,
       id_mensaje_meta: mensajeId,
-      tipo: "texto",
-    };
-    console.log("💾 [6/10] Guardando mensaje usuario — conv:", convExist.id, "| mid:", mensajeId);
-    const { error: errMsgUser } = await supabase.from("mensajes").insert(mensajeInsert);
-    if (errMsgUser) {
-      // Si falla por duplicado (race condition tardío), salir silenciosamente
-      if (errMsgUser.message?.includes("duplicate") || errMsgUser.code === "23505") {
-        console.log("⏭️ [6/10] Mensaje duplicado por constraint — mid:", mensajeId);
+      tipo: "texto"
+    });
+
+    if (errInsMsg) {
+      // Si falla por duplicado, salimos
+      if (errInsMsg.message?.includes("duplicate") || errInsMsg.code === "23505") {
         return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
       }
-      console.error("❌ [6/10] ERROR AL GUARDAR MENSAJE USUARIO:", errMsgUser.message, errMsgUser.details, errMsgUser.hint);
+      console.error("❌ Error guardando mensaje usuario:", errInsMsg.message);
     }
-    else console.log("✅ [6/10] Mensaje usuario guardado OK");
-    await supabase
-      .from("conversaciones")
-      .update({
-        actualizado_en: new Date().toISOString(),
-        ultimo_mensaje: texto,
-      })
-      .eq("id", convExist.id);
+
+    // Actualizar nombre si ahora lo tenemos y antes no
+    if (nombrePerfil && nombrePerfil !== "Prospecto" && !convExist.nombre_contacto) {
+      await supabase.from("conversaciones").update({ nombre_contacto: nombrePerfil }).eq("id", convExist.id);
+    }
+
+    // --- PAUSA DE BOT: SI ESTÁ ASIGNADO A HUMANO ---
+    if (convExist.asignado_a_humano) {
+      console.log("⏸️ Chatbot PAUSADO para", remitenteId);
+      return NextResponse.json({ estado: "pausado_humano" }, { status: 200 });
+    }
+
+    // Buscar prospecto para el contexto de AlexIA
+    let prosExist = convExist.prospectos || null;
+    if (!prosExist) {
+      const { data: pTel } = await supabase.from("prospectos").select("*").eq("telefono", remitenteId).maybeSingle();
+      if (pTel) {
+        prosExist = pTel;
+        await supabase.from("conversaciones").update({ prospecto_id: pTel.id }).eq("id", convExist.id);
+      }
+    }
 
     // --- PAUSA DE BOT: SI ESTÁ ASIGNADO A HUMANO, NO CONSULTA A ALEXIA ---
     if (convExist.asignado_a_humano) {
@@ -1024,56 +948,44 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           }
         }
       } else {
-        // LÓGICA SIN IMAGEN: Enviar todo en una sola burbuja de texto (Lógica Total English)
-        const burbujaActual = respuesta.trim();
-        let ultimaBurbujaGuardada = burbujaActual;
+        // LÓGICA DE ENVÍO (Basada en la petición del usuario: separar lugar de preguntas)
+        const partesRespuesta = respuesta
+          .split("\n\n")
+          .filter((p) => p.trim() !== "");
+        
+        let ultimaRespuesta = "";
+        for (let i = 0; i < partesRespuesta.length; i++) {
+          const burbuja = partesRespuesta[i].trim();
+          if (!burbuja) continue;
 
-        if (burbujaActual) {
-          // 1. GUARDAR EN DB PRIMERO
-          try {
-            const { error: insertErr } = await supabase.from("mensajes").insert({
-              conversacion_id: convExist.id,
-              remitente: "bot",
-              contenido: burbujaActual,
-              tipo: "texto",
-            });
-            if (insertErr) {
-              console.error("❌ [8/10] ERROR AL INSERTAR MENSAJE BOT EN DB:", insertErr.message, insertErr.details);
-            } else {
-              console.log("✅ [8/10] Mensaje bot guardado en DB:", burbujaActual.substring(0, 50));
-            }
-          } catch (dbErr) {
-            console.error("❌ [8/10] EXCEPCIÓN guardando mensaje bot:", dbErr.message);
+          // Guardar en DB
+          await supabase.from("mensajes").insert({
+            conversacion_id: convExist.id,
+            remitente: "bot",
+            contenido: burbuja,
+            tipo: "texto"
+          });
+          ultimaRespuesta = burbuja;
+
+          // Enviar por Meta
+          await marcarEscribiendoWrapper(remitenteId);
+          const delay = Math.min(Math.max(burbuja.length * 10, 800), 2500);
+          await sleep(delay);
+          
+          const esUltima = i === partesRespuesta.length - 1;
+          if (esUltima && opcionesLimpias) {
+            await enviarRespuesta(remitenteId, burbuja, null, opcionesLimpias);
+          } else {
+            await enviarRespuesta(remitenteId, burbuja);
           }
-
-          // 2. ENVIAR POR META API
-          try {
-            await marcarEscribiendoWrapper(remitenteId);
-            await sleep(
-              Math.min(Math.max(burbujaActual.length * 10, 1000), 3000),
-            );
-
-            if (opcionesLimpias) {
-              await enviarRespuesta(
-                remitenteId,
-                burbujaActual,
-                null,
-                opcionesLimpias,
-              );
-            } else {
-              await enviarRespuesta(remitenteId, burbujaActual);
-            }
-            console.log("✅ [9/10] Mensaje enviado por Meta API (" + plataforma + "):", burbujaActual.substring(0, 50));
-          } catch (sendErr) {
-            console.error("❌ [9/10] ERROR enviando por Meta API (" + plataforma + "):", sendErr.message);
-          }
-
-          // Actualizar ultimo_mensaje
-          await supabase
-            .from("conversaciones")
-            .update({ ultimo_mensaje: ultimaBurbujaGuardada.substring(0, 200) })
-            .eq("id", convExist.id);
         }
+
+        // Actualizar conversación
+        await supabase
+          .from("conversaciones")
+          .update({ ultimo_mensaje: ultimaRespuesta.substring(0, 200) })
+          .eq("id", convExist.id);
+      }
       }
     } catch (txtErr) {
       console.error("❌ [8/10] Error en el flujo de mensajes:", txtErr.message, txtErr.stack);
