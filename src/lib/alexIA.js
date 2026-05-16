@@ -51,14 +51,7 @@ Reconoce la respuesta anterior: "¡Perfecto! / Qué bien. / Entiendo." + pregunt
   "opciones": ["Opción 1", "Opción 2"],
   "intencion": "PROFILE_PROVIDED | COURSE_RECOMMENDED | VISIT_INTENT | CALL_ACCEPTED | SCHEDULING_DATE | CIERRE_CITA | SEGUIMIENTO | TRANSFER_HUMANO"
 }
-`;"imagen": "Nombre_Imagen.jpg",
-    "fecha_cita": "YYYY-MM-DD", "hora_cita": "HH:MM"
-  },
-  "opciones": ["Opcional: Solo si hay que elegir entre Visita/Llamada"],
-  "intencion": "PROFILE_PROVIDED | COURSE_RECOMMENDED | VISIT_INTENT | CALL_ACCEPTED | SCHEDULING_DATE | CIERRE_CITA | SEGUIMIENTO | TRANSFER_HUMANO"
-}
 `;
-
 
 export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plataforma = 'WhatsApp', tablaDinamicaCursos = 'NO HAY CURSOS', configBot = null) {
   try {
