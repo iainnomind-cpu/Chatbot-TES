@@ -454,6 +454,13 @@ export default function PaginaProspectos() {
                   <span className="material-symbols-outlined text-[14px]">edit</span>
                   Editar
                 </button>
+                <button 
+                  onClick={() => handleDeleteProspecto(prospectoSeleccionado.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-bold rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[14px]">delete</span>
+                  Eliminar
+                </button>
               </div>
             </div>
 
