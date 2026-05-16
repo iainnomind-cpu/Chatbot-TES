@@ -245,7 +245,7 @@ export async function POST(solicitud) {
       convExist = nuevaC;
 
       // Anti-duplicado post-creación: esperar y verificar si otro webhook creó una al mismo tiempo
-      await sleep(800);
+      await sleep(1000);
       const { data: checkDups } = await supabase
         .from("conversaciones")
         .select("id, creado_en")
@@ -254,25 +254,25 @@ export async function POST(solicitud) {
         .order("creado_en", { ascending: true });
 
       if (checkDups && checkDups.length > 1) {
-        console.log(`🔄 [5/10] Detectadas ${checkDups.length} conversaciones duplicadas post-creación`);
         const principal = checkDups[0];
         if (principal.id !== convExist.id) {
-          // Nuestra conversación no es la más antigua, migrar y borrar
-          await supabase.from("mensajes").update({ conversacion_id: principal.id }).eq("conversacion_id", convExist.id);
+          // PERDIMOS LA CARRERA: otro webhook ya creó la conversación principal.
+          // Borrar nuestra conversación duplicada y SALIR COMPLETAMENTE.
+          // El otro webhook se encargará de procesar el mensaje.
+          console.log(`⏭️ [5/10] Webhook duplicado detectado — delegando al proceso principal (${principal.id})`);
           await supabase.from("conversaciones").delete().eq("id", convExist.id);
-          convExist = { ...convExist, id: principal.id };
-          console.log("✅ [5/10] Consolidado a conversación:", principal.id);
+          return NextResponse.json({ estado: "delegado_a_principal" }, { status: 200 });
         } else {
-          // Nuestra conversación es la más antigua, borrar las demás
+          // GANAMOS LA CARRERA: borrar las conversaciones duplicadas de los otros webhooks
+          console.log(`🔄 [5/10] Limpiando ${checkDups.length - 1} conversación(es) duplicada(s)`);
           for (let i = 1; i < checkDups.length; i++) {
-            await supabase.from("mensajes").update({ conversacion_id: convExist.id }).eq("conversacion_id", checkDups[i].id);
             await supabase.from("conversaciones").delete().eq("id", checkDups[i].id);
           }
         }
       }
 
-      // Pausa de 2 segundos para el primer mensaje (Bienvenida)
-      await sleep(1200);
+      // Pausa para el primer mensaje (Bienvenida)
+      await sleep(1500);
     } else if (nombrePerfil && nombrePerfil !== "Prospecto") {
       // Actualizar nombre_contacto si lo extrajimos de Meta
       await supabase
