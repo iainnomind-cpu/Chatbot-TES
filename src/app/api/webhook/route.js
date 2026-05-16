@@ -141,101 +141,98 @@ export async function POST(solicitud) {
     // Webhooks concurrentes se separan por un tiempo aleatorio
     await sleep(Math.floor(Math.random() * 2000));
 
-    // === PASO 1: BUSCAR O CREAR CONVERSACIÓN (ÚNICA) ===
-    const variantesId = remitenteId.startsWith("52")
-      ? [remitenteId, remitenteId.replace("52", "521")]
-      : [remitenteId];
-    
-    let convExist = null;
-    
-    // Intentar encontrar
-    let { data: matches } = await supabase
+    // === PASO 1: OBTENER CONVERSACIÓN ÚNICA ===
+    let { data: todasConvs } = await supabase
       .from("conversaciones")
-      .select("*, prospectos(*)")
+      .select("id, creado_en")
       .in("id_plataforma", variantesId)
       .eq("plataforma", plataforma)
       .order("creado_en", { ascending: true });
 
-    if (matches && matches.length > 0) {
-      convExist = matches[0];
-      
-      // LIMPIEZA AGRESIVA: Si hay duplicadas, mover mensajes y borrar
-      if (matches.length > 1) {
-        console.log(`🧹 Consolidando ${matches.length} duplicados para ${remitenteId}`);
-        for (let i = 1; i < matches.length; i++) {
-          const dup = matches[i];
-          await supabase.from("mensajes").update({ conversacion_id: convExist.id }).eq("conversacion_id", dup.id);
-          await supabase.from("conversaciones").delete().eq("id", dup.id);
-        }
-      }
+    let convExist = null;
+    if (todasConvs && todasConvs.length > 0) {
+      convExist = todasConvs[0];
     } else {
-      // Crear una sola
-      const { data: nuevaC, error: errC } = await supabase
-        .from("conversaciones")
-        .insert({
-          plataforma,
-          id_plataforma: remitenteId,
-          nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null
-        })
-        .select("*")
-        .single();
+      // Intentar crear
+      const { data: nuevaC } = await supabase.from("conversaciones").insert({
+        plataforma,
+        id_plataforma: remitenteId,
+        nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null
+      }).select("id, creado_en").single();
       
-      if (errC) {
-        // Si falló (ej. por constraint o race condition), buscar de nuevo
-        let { data: retry } = await supabase
+      if (nuevaC) {
+        // "Batalla" por la conversación: esperar y ver si somos la principal
+        await sleep(600);
+        const { data: checkC } = await supabase
           .from("conversaciones")
-          .select("*, prospectos(*)")
+          .select("id")
           .in("id_plataforma", variantesId)
           .eq("plataforma", plataforma)
-          .maybeSingle();
-        convExist = retry;
-      } else {
+          .order("creado_en", { ascending: true });
+        
+        if (checkC && checkC[0].id !== nuevaC.id) {
+          console.log("⏭️ [LOCK] Otra ejecución ganó la creación de la conversación");
+          return NextResponse.json({ estado: "duplicado_conv" }, { status: 200 });
+        }
         convExist = nuevaC;
+      } else {
+        // Re-intentar buscar si falló la creación
+        const { data: retryC } = await supabase
+          .from("conversaciones")
+          .select("id")
+          .in("id_plataforma", variantesId)
+          .eq("plataforma", plataforma)
+          .order("creado_en", { ascending: true })
+          .maybeSingle();
+        convExist = retryC;
       }
     }
 
-    if (!convExist) return NextResponse.json({ error: "Falla conv" }, { status: 200 });
+    if (!convExist) return NextResponse.json({ error: "No conv" }, { status: 200 });
 
-    // === PASO 2: BLOQUEO DE MENSAJE DUPLICADO ===
-    const { data: existeMsg } = await supabase
-      .from("mensajes")
-      .select("id")
-      .eq("id_mensaje_meta", mensajeId)
-      .maybeSingle();
-
-    if (existeMsg) {
-      console.log("⏭️ Mensaje duplicado detectado, ignorando:", mensajeId);
-      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
-    }
-
-    // Insertar mensaje del usuario (esto actúa como lock final)
-    const { error: errLock } = await supabase.from("mensajes").insert({
+    // === PASO 2: BATALLA POR EL MENSAJE (LOCK DISTRIBUIDO) ===
+    // 1. Insertar el mensaje
+    const { data: nuevoMsg, error: errMsg } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
       remitente: "usuario",
       contenido: texto,
       id_mensaje_meta: mensajeId,
       tipo: "texto"
-    });
+    }).select("id").single();
 
-    if (errLock) {
-      if (errLock.code === "23505" || errLock.message?.includes("duplicate")) {
-        return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
-      }
+    // 2. Si falla por constraint, salir
+    if (errMsg && (errMsg.code === "23505" || errMsg.message?.includes("duplicate"))) {
+      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
     }
 
-    // Actualizar nombre si ahora lo tenemos y antes no
-    if (nombrePerfil && nombrePerfil !== "Prospecto" && !convExist.nombre_contacto) {
+    // 3. Si no falló, verificar si somos los dueños legítimos del mensaje
+    // (Útil si no hay constraint UNIQUE en la DB)
+    await sleep(600);
+    const { data: misMsgs } = await supabase
+      .from("mensajes")
+      .select("id")
+      .eq("id_mensaje_meta", mensajeId)
+      .order("creado_en", { ascending: true });
+
+    if (misMsgs && misMsgs.length > 1 && misMsgs[0].id !== nuevoMsg?.id) {
+      console.log("⏭️ [LOCK] Perdimos la batalla por el mensaje mid:", mensajeId);
+      // Opcional: borrar nuestro mensaje duplicado
+      if (nuevoMsg) await supabase.from("mensajes").delete().eq("id", nuevoMsg.id);
+      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
+    }
+
+    // A partir de aquí, solo UNA ejecución sobrevive
+    console.log("🏆 [WINNER] Esta ejecución procesará el mensaje:", mensajeId);
+
+    // Actualizar nombre si es necesario
+    if (nombrePerfil && nombrePerfil !== "Prospecto") {
       await supabase.from("conversaciones").update({ nombre_contacto: nombrePerfil }).eq("id", convExist.id);
     }
 
-    // --- PAUSA DE BOT: SI ESTÁ ASIGNADO A HUMANO ---
-    if (convExist.asignado_a_humano) {
-      console.log("⏸️ Chatbot PAUSADO para", remitenteId);
-      return NextResponse.json({ estado: "pausado_humano" }, { status: 200 });
-    }
-
-    // Buscar prospecto para el contexto de AlexIA
-    let prosExist = convExist.prospectos || null;
+    // Buscar prospecto real
+    const { data: convFull } = await supabase.from("conversaciones").select("*, prospectos(*)").eq("id", convExist.id).single();
+    let prosExist = convFull?.prospectos || null;
+    
     if (!prosExist) {
       const { data: pTel } = await supabase.from("prospectos").select("*").eq("telefono", remitenteId).maybeSingle();
       if (pTel) {
