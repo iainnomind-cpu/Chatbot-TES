@@ -146,6 +146,7 @@ export async function POST(solicitud) {
       ? [remitenteId, remitenteId.replace("52", "521")]
       : [remitenteId];
 
+    console.log(`🔍 [4/10] Buscando conversación para ${remitenteId}...`);
     let { data: todasConvs } = await supabase
       .from("conversaciones")
       .select("id, creado_en")
@@ -156,17 +157,20 @@ export async function POST(solicitud) {
     let convExist = null;
     if (todasConvs && todasConvs.length > 0) {
       convExist = todasConvs[0];
+      console.log(`✅ [4/10] Conversación encontrada: ${convExist.id}`);
     } else {
-      // Intentar crear
-      const { data: nuevaC } = await supabase.from("conversaciones").insert({
+      console.log(`🆕 [4/10] Creando nueva conversación...`);
+      const { data: nuevaC, error: errNuevaC } = await supabase.from("conversaciones").insert({
         plataforma,
         id_plataforma: remitenteId,
         nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null
-      }).select("id, creado_en").single();
+      }).select("id, creado_en").maybeSingle();
       
+      if (errNuevaC) console.error("❌ Error creando conv:", errNuevaC.message);
+
       if (nuevaC) {
-        // "Batalla" por la conversación: esperar y ver si somos la principal
-        await sleep(600);
+        console.log(`⚔️ [4/10] Batalla por la creación (id: ${nuevaC.id})...`);
+        await sleep(500);
         const { data: checkC } = await supabase
           .from("conversaciones")
           .select("id")
@@ -174,59 +178,60 @@ export async function POST(solicitud) {
           .eq("plataforma", plataforma)
           .order("creado_en", { ascending: true });
         
-        if (checkC && checkC[0].id !== nuevaC.id) {
-          console.log("⏭️ [LOCK] Otra ejecución ganó la creación de la conversación");
+        if (checkC && checkC.length > 0 && checkC[0].id !== nuevaC.id) {
+          console.log(`⏭️ [LOCK] Perdimos batalla de conv. Ganó: ${checkC[0].id}`);
           return NextResponse.json({ estado: "duplicado_conv" }, { status: 200 });
         }
         convExist = nuevaC;
+        console.log("🏆 [4/10] Ganamos la creación de conv");
       } else {
-        // Re-intentar buscar si falló la creación
         const { data: retryC } = await supabase
           .from("conversaciones")
           .select("id")
           .in("id_plataforma", variantesId)
           .eq("plataforma", plataforma)
           .order("creado_en", { ascending: true })
+          .limit(1)
           .maybeSingle();
         convExist = retryC;
+        console.log(convExist ? `✅ [4/10] Recuperada conv de otra ejecución: ${convExist.id}` : "❌ [4/10] No se pudo obtener conv");
       }
     }
 
     if (!convExist) return NextResponse.json({ error: "No conv" }, { status: 200 });
 
     // === PASO 2: BATALLA POR EL MENSAJE (LOCK DISTRIBUIDO) ===
-    // 1. Insertar el mensaje
+    console.log(`⚔️ [5/10] Insertando mensaje para batalla: ${mensajeId}`);
     const { data: nuevoMsg, error: errMsg } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
       remitente: "usuario",
       contenido: texto,
       id_mensaje_meta: mensajeId,
       tipo: "texto"
-    }).select("id").single();
+    }).select("id").maybeSingle();
 
-    // 2. Si falla por constraint, salir
-    if (errMsg && (errMsg.code === "23505" || errMsg.message?.includes("duplicate"))) {
-      return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
+    if (errMsg) {
+      if (errMsg.code === "23505" || errMsg.message?.includes("duplicate")) {
+        console.log("⏭️ [5/10] Bloqueo por Constraint UNIQUE (Mensaje ya existe)");
+        return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
+      }
+      console.error("❌ Error insertando mensaje:", errMsg.message);
     }
 
-    // 3. Si no falló, verificar si somos los dueños legítimos del mensaje
-    // (Útil si no hay constraint UNIQUE en la DB)
-    await sleep(600);
+    await sleep(500);
     const { data: misMsgs } = await supabase
       .from("mensajes")
       .select("id")
       .eq("id_mensaje_meta", mensajeId)
       .order("creado_en", { ascending: true });
 
-    if (misMsgs && misMsgs.length > 1 && misMsgs[0].id !== nuevoMsg?.id) {
-      console.log("⏭️ [LOCK] Perdimos la batalla por el mensaje mid:", mensajeId);
-      // Opcional: borrar nuestro mensaje duplicado
-      if (nuevoMsg) await supabase.from("mensajes").delete().eq("id", nuevoMsg.id);
+    if (misMsgs && misMsgs.length > 1 && nuevoMsg && misMsgs[0].id !== nuevoMsg.id) {
+      console.log(`⏭️ [LOCK] Perdimos batalla de mensaje. Ganó: ${misMsgs[0].id}`);
+      await supabase.from("mensajes").delete().eq("id", nuevoMsg.id);
       return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
     }
 
-    // A partir de aquí, solo UNA ejecución sobrevive
-    console.log("🏆 [WINNER] Esta ejecución procesará el mensaje:", mensajeId);
+    console.log(`🏆 [WINNER] Esta ejecución es la oficial para: ${mensajeId}`);
 
     // Actualizar nombre si es necesario
     if (nombrePerfil && nombrePerfil !== "Prospecto") {
