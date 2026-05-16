@@ -115,6 +115,18 @@ export default function PaginaProspectos() {
 
   useEffect(() => {
     cargarProspectos()
+    
+    // Suscripción en tiempo real para nuevos prospectos o cambios
+    const canal = supabase
+      .channel('cambios-prospectos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prospectos' }, () => {
+        cargarProspectos()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(canal)
+    }
   }, [])
 
   const exportarCSV = () => {
