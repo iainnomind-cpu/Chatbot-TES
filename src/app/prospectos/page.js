@@ -577,8 +577,9 @@ export default function PaginaProspectos() {
               )}
             </div>
           </div>
-        </>
-      )}
+        </div>
+      </>
+    )}
 
       {/* Modal CRUD */}
       <ModalFormulario
