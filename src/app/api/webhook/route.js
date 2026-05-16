@@ -861,8 +861,20 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
         let textoIntro = "";
         let textoCaption = "";
+        let textoCierre = "";
 
+        // Caso 3 partes: Intro (Permíteme...) | Caption (Imagen) | Cierre (Pregunta final)
         if (
+          partesRespuesta.length >= 3 &&
+          (partesRespuesta[0].toLowerCase().includes("momento") || 
+           partesRespuesta[0].toLowerCase().includes("permíteme"))
+        ) {
+          textoIntro = partesRespuesta[0];
+          textoCaption = partesRespuesta[1];
+          textoCierre = partesRespuesta.slice(2).join("\n\n");
+        } 
+        // Caso 2 partes: Intro | Caption
+        else if (
           partesRespuesta.length > 0 &&
           (partesRespuesta[0].toLowerCase().includes("momento") || 
            partesRespuesta[0].toLowerCase().includes("permíteme"))
@@ -945,6 +957,11 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             await sleep(2000);
             const imgOk = await enviarRespuesta(remitenteId, textoCaption || null, imgUrl);
             console.log("🖼️ [8/10] Imagen+caption enviada:", imgOk ? "OK" : "FALLÓ");
+
+            if (imgOk && typeof textoCierre === 'string' && textoCierre.trim()) {
+              await sleep(1000);
+              await enviarRespuesta(remitenteId, textoCierre);
+            }
           } catch (e) {
             console.error("❌ [8/10] Error enviando imagen+caption:", e.message);
           }
