@@ -603,13 +603,14 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             const { data: nuevoP } = await supabase
               .from("prospectos")
               .insert({
-                nombre: datos.nombre || nombrePerfil || "Interesado",
+                nombre: (nombrePerfil && nombrePerfil !== "Prospecto") ? nombrePerfil : (datos.nombre_alumno || "Interesado"),
                 nombre_alumno: datos.nombre_alumno || null,
                 telefono: remitenteId,
                 edad: datos.edad ? parseInt(datos.edad) : null,
                 nivel: datos.nivel || null,
                 horario: datos.horario || null,
                 curso_interes: datos.curso_interes || null,
+                canal: plataforma,
                 estado: "nuevo",
               })
               .select("*")

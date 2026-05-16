@@ -22,6 +22,7 @@ export default function PaginaProspectos() {
     { nombre: 'telefono', etiqueta: 'Teléfono (WhatsApp)', tipo: 'text', placeholder: '521...', requerido: true },
     { nombre: 'curso_interes', etiqueta: 'Curso de Interés', tipo: 'text', placeholder: 'Ej: Children' },
     { nombre: 'parentesco', etiqueta: 'Relación con el Alumno', tipo: 'text', placeholder: 'Ej: Para mi hijo, Para mí' },
+    { nombre: 'canal', etiqueta: 'Canal de Procedencia', tipo: 'text', placeholder: 'Messenger / Instagram / WhatsApp' },
     { nombre: 'edad', etiqueta: 'Edad', tipo: 'number', placeholder: 'Ej: 8' },
     { nombre: 'nivel', etiqueta: 'Nivel', tipo: 'text', placeholder: 'Ej: Básico' },
     { 
@@ -229,8 +230,9 @@ export default function PaginaProspectos() {
                         <span className="material-symbols-outlined text-[14px] text-green-600">message</span>
                         {p.telefono}
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5 ml-5">
+                      <div className="text-[11px] text-slate-400 mt-0.5 ml-5 flex items-center gap-1">
                         De: {p.nombre}
+                        {p.canal && <span className="bg-slate-200 px-1.5 rounded-full text-[9px] uppercase font-bold text-slate-600 ml-1">{p.canal}</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -454,6 +456,10 @@ export default function PaginaProspectos() {
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-500 block mb-1">Parentesco</span>
                   <span className="font-bold text-slate-800">{prospectoSeleccionado.parentesco || '—'}</span>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                  <span className="text-[10px] text-blue-500 block mb-1">Canal de Origen</span>
+                  <span className="font-bold text-blue-800 uppercase text-xs">{prospectoSeleccionado.canal || 'Desconocido'}</span>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 col-span-2">
                   <span className="text-[10px] text-slate-500 block mb-1">Curso de Interés</span>
