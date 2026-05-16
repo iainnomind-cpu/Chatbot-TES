@@ -142,6 +142,10 @@ export async function POST(solicitud) {
     await sleep(Math.floor(Math.random() * 2000));
 
     // === PASO 1: OBTENER CONVERSACIÓN ÚNICA ===
+    const variantesId = remitenteId.startsWith("52")
+      ? [remitenteId, remitenteId.replace("52", "521")]
+      : [remitenteId];
+
     let { data: todasConvs } = await supabase
       .from("conversaciones")
       .select("id, creado_en")
