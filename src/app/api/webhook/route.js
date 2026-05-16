@@ -746,8 +746,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             fecha: fCitaStr,
             hora: datos.hora_cita || "16:00",
             tipo: "Inscripción / Sesión Informativa",
-            estado: "pendiente",
-            nombre_alumno: nombreParaCita
+            estado: "pendiente"
           };
           console.log("📅 Creando cita oficial:", insertCita);
           const { error: insErr } = await supabase.from("citas").insert(insertCita);
