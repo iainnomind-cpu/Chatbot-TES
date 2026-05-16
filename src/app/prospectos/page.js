@@ -374,9 +374,16 @@ export default function PaginaProspectos() {
         )}
       </div>
 
-      {/* Slide-over Detalles del Prospecto */}
+      {/* Slide-over Detalles del Prospecto (FLOTANTE) */}
       {prospectoSeleccionado && (
-        <div className="w-full lg:w-[400px] shrink-0 bg-white border border-slate-200 shadow-2xl lg:shadow-sm rounded-2xl flex flex-col h-full animate-[fadeIn_0.2s_ease-out]">
+        <>
+          {/* Overlay oscuro de fondo */}
+          <div 
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity"
+            onClick={() => setProspectoSeleccionado(null)}
+          />
+          
+          <div className="fixed top-20 right-4 bottom-4 w-[90%] md:w-[400px] bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col z-50 animate-[slideInRight_0.3s_ease-out] overflow-hidden">
           {/* Header Modal */}
           <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white rounded-t-2xl">
             <h3 className="font-bold text-[#1e3a8a] flex items-center gap-2">
