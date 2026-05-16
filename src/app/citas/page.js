@@ -288,16 +288,31 @@ export default function PaginaCitas() {
                       </div>
                       <div>
                         <h4 className="font-bold text-blue-900 group-hover:text-[#00236f] transition-colors flex items-center gap-1.5">
-                          {cita.prospectos?.nombre_alumno || 'Alumno Desconocido'}
+                          {cita.prospectos?.nombre_alumno || cita.prospectos?.nombre || 'Alumno Desconocido'}
                         </h4>
-                        <p className="text-xs text-slate-500 font-medium">
-                          <span className="material-symbols-outlined text-[12px] inline-block mr-1">person</span>
-                          A cargo de: {cita.prospectos?.nombre}
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1 bg-slate-100 w-fit px-2 py-0.5 rounded-full">
-                          <span className="material-symbols-outlined text-[11px]">call</span>
-                          {cita.prospectos?.telefono || 'Sin teléfono'}
-                        </p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5">
+                          <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">person</span>
+                            A cargo de: {cita.prospectos?.nombre || 'Desconocido'}
+                          </p>
+                          {cita.tipo && (
+                            <p className="text-xs text-blue-600 font-bold flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[12px]">event_note</span>
+                              {cita.tipo}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <p className="text-[11px] text-slate-400 flex items-center gap-1 bg-slate-100 w-fit px-2 py-0.5 rounded-full">
+                            <span className="material-symbols-outlined text-[11px]">call</span>
+                            {cita.prospectos?.telefono || 'Sin teléfono'}
+                          </p>
+                          {cita.notas && (
+                            <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100 italic">
+                              "{cita.notas.substring(0, 40)}{cita.notas.length > 40 ? '...' : ''}"
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right flex items-center gap-3">
@@ -356,6 +371,12 @@ export default function PaginaCitas() {
                         <span className="text-slate-400 font-medium">Nivel:</span>
                         <span className="font-bold text-slate-700">{cita.prospectos?.nivel || 'Desde cero'}</span>
                       </div>
+                      {cita.tipo && (
+                        <div className="bg-blue-50/50 p-2 rounded-lg text-xs mt-1 border border-blue-100">
+                          <span className="text-blue-500 font-bold block mb-0.5">Tipo de Cita:</span>
+                          <span className="font-medium text-slate-600">{cita.tipo}</span>
+                        </div>
+                      )}
                       <div className="bg-blue-50/50 p-2 rounded-lg text-xs mt-2 border border-blue-100">
                         <span className="text-blue-500 font-bold block mb-0.5">Interés Principal:</span>
                         <span className="font-medium text-slate-600">{cita.prospectos?.curso_interes || 'Por decidir'}</span>

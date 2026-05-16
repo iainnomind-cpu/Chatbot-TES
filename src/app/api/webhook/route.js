@@ -659,36 +659,33 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     }
 
     // 5b. GUARDAR NOMBRE DEL ALUMNO (Forzado durante agendamiento)
-    if (
-      prosExist &&
-      (intencion === "SCHEDULING_DATE" || intencion === "CIERRE_CITA")
-    ) {
+    if (prosExist) {
       const isInvalidN = (n) =>
         !n ||
         ["...", "desconocido", "n/a", "null", "usuario", ""].includes(
           String(n).toLowerCase().trim(),
         );
 
-      // Intentar obtener el nombre: 1) del JSON de la IA, 2) del mensaje del usuario (cuando respondió a "¿Cuál es tu nombre?")
+      // 1. Si no tenemos nombre de prospecto (el tutor/titular), usar el de Meta
+      if (isInvalidN(prosExist.nombre) && !isInvalidN(nombrePerfil)) {
+        await supabase.from("prospectos").update({ nombre: nombrePerfil }).eq("id", prosExist.id);
+        prosExist.nombre = nombrePerfil;
+      }
+
+      // 2. Extraer nombre del alumno
       let nombreFinal = datos.nombre_alumno;
 
-      if (isInvalidN(nombreFinal) && intencion === "SCHEDULING_DATE") {
-        // Si la IA no extrajo el nombre, el texto del usuario ES el nombre (acaba de responder a la pregunta del nombre)
+      // Si la intención es recoger nombre o estamos agendando
+      if (isInvalidN(nombreFinal) && (intencion === "SCHEDULING_DATE" || intencion === "RECOGER_NOMBRE")) {
         const textoLimpio = texto.trim();
-        // Validar que parece un nombre (2-5 palabras, sin números, sin URLs)
-        if (
-          textoLimpio &&
-          textoLimpio.split(/\s+/).length <= 5 &&
-          !/\d/.test(textoLimpio) &&
-          !textoLimpio.includes("http")
-        ) {
+        if (textoLimpio && textoLimpio.split(/\s+/).length <= 5 && !/\d/.test(textoLimpio) && !textoLimpio.includes("http")) {
           nombreFinal = textoLimpio;
         }
       }
 
-      // También buscar en el prospecto existente por si ya se guardó antes
-      if (isInvalidN(nombreFinal) && prosExist.nombre_alumno) {
-        nombreFinal = prosExist.nombre_alumno;
+      // Fallback: si el curso es para el usuario y no tenemos nombre_alumno, usar el nombre del prospecto
+      if (isInvalidN(nombreFinal) && freshPros.es_para_mi !== "no") {
+        nombreFinal = prosExist.nombre_alumno || prosExist.nombre;
       }
 
       if (nombreFinal && !isInvalidN(nombreFinal)) {
