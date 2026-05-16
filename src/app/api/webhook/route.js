@@ -149,10 +149,10 @@ export async function POST(solicitud) {
     console.log(`🔍 [4/10] Buscando conversación para ${remitenteId}...`);
     let { data: todasConvs } = await supabase
       .from("conversaciones")
-      .select("id, creado_en")
+      .select("id, created_at")
       .in("id_plataforma", variantesId)
       .eq("plataforma", plataforma)
-      .order("creado_en", { ascending: true });
+      .order("created_at", { ascending: true });
 
     let convExist = null;
     if (todasConvs && todasConvs.length > 0) {
@@ -164,7 +164,7 @@ export async function POST(solicitud) {
         plataforma,
         id_plataforma: remitenteId,
         nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null
-      }).select("id, creado_en").maybeSingle();
+      }).select("id, created_at").maybeSingle();
       
       if (errNuevaC) console.error("❌ Error creando conv:", errNuevaC.message);
 
@@ -176,7 +176,7 @@ export async function POST(solicitud) {
           .select("id")
           .in("id_plataforma", variantesId)
           .eq("plataforma", plataforma)
-          .order("creado_en", { ascending: true });
+          .order("created_at", { ascending: true });
         
         if (checkC && checkC.length > 0 && checkC[0].id !== nuevaC.id) {
           console.log(`⏭️ [LOCK] Perdimos batalla de conv. Ganó: ${checkC[0].id}`);
@@ -190,7 +190,7 @@ export async function POST(solicitud) {
           .select("id")
           .in("id_plataforma", variantesId)
           .eq("plataforma", plataforma)
-          .order("creado_en", { ascending: true })
+          .order("created_at", { ascending: true })
           .limit(1)
           .maybeSingle();
         convExist = retryC;
