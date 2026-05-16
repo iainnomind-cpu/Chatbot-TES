@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function middleware(request) {
   // Allow public paths
-  const publicPaths = ['/login', '/api/auth', '/api/webhook', '/api/cron', '/gracias']
+  const publicPaths = ['/login', '/api/auth', '/api/webhook', '/api/cron', '/gracias', '/privacidad', '/eliminacion-datos']
   const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
   if (isPublicPath) {
