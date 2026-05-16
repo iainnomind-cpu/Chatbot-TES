@@ -146,9 +146,7 @@ export async function POST(solicitud) {
       ? [remitenteId, remitenteId.replace("52", "521")]
       : [remitenteId];
 
-    console.log(`🔍 [4/10] Buscando conversación para ${remitenteId}...`);
-    const { data: testRow } = await supabase.from("conversaciones").select("*").limit(1).maybeSingle();
-    console.log("🛠️ COLUMNAS CONVERSACIONES:", Object.keys(testRow || {}));
+    console.log(`🔍 [4/10] Procesando conversación para ${remitenteId}...`);
     
     let { data: todasConvs } = await supabase
       .from("conversaciones")
@@ -171,7 +169,6 @@ export async function POST(solicitud) {
       if (errNuevaC) console.error("❌ Error creando conv:", errNuevaC.message);
 
       if (nuevaC) {
-        console.log(`⚔️ [4/10] Batalla por la creación (id: ${nuevaC.id})...`);
         await sleep(500);
         const { data: checkC } = await supabase
           .from("conversaciones")
@@ -180,11 +177,9 @@ export async function POST(solicitud) {
           .eq("plataforma", plataforma);
         
         if (checkC && checkC.length > 0 && checkC[0].id !== nuevaC.id) {
-          console.log(`⏭️ [LOCK] Perdimos batalla de conv. Ganó: ${checkC[0].id}`);
           return NextResponse.json({ estado: "duplicado_conv" }, { status: 200 });
         }
         convExist = nuevaC;
-        console.log("🏆 [4/10] Ganamos la creación de conv");
       } else {
         const { data: retryC } = await supabase
           .from("conversaciones")
@@ -194,7 +189,6 @@ export async function POST(solicitud) {
           .limit(1)
           .maybeSingle();
         convExist = retryC;
-        console.log(convExist ? `✅ [4/10] Recuperada conv de otra ejecución: ${convExist.id}` : "❌ [4/10] No se pudo obtener conv");
       }
     }
 
@@ -226,12 +220,11 @@ export async function POST(solicitud) {
       .order("creado_en", { ascending: true });
 
     if (misMsgs && misMsgs.length > 1 && nuevoMsg && misMsgs[0].id !== nuevoMsg.id) {
-      console.log(`⏭️ [LOCK] Perdimos batalla de mensaje. Ganó: ${misMsgs[0].id}`);
       await supabase.from("mensajes").delete().eq("id", nuevoMsg.id);
       return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
     }
 
-    console.log(`🏆 [WINNER] Esta ejecución es la oficial para: ${mensajeId}`);
+    console.log(`🏆 [WINNER] Ejecución oficial para: ${mensajeId}`);
 
     // Actualizar nombre si es necesario
     if (nombrePerfil && nombrePerfil !== "Prospecto") {
