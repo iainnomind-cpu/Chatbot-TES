@@ -229,6 +229,10 @@ export async function POST(solicitud) {
       }
     }
 
+    // Retraso aleatorio (Jitter) de 0 a 1500ms para evitar Race Conditions
+    // cuando Meta envía dos webhooks idénticos al mismo milisegundo por error
+    await sleep(Math.floor(Math.random() * 1500));
+
     const { data: existeMsg } = await supabase
       .from("mensajes")
       .select("id")
