@@ -757,10 +757,9 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           await supabase
             .from("prospectos")
             .update({ estado: "agendado", lead_score: "CALIENTE" })
-            .eq("id", prosExist.id);
-        }
-      } else {
-        if (datos.fecha_cita || datos.hora_cita) {
+          }
+        } else {
+          if (datos.fecha_cita || datos.hora_cita) {
           const updateCita = {
             fecha:
               datos.fecha_cita && regexFecha.test(datos.fecha_cita)
