@@ -1029,6 +1029,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             .update({ ultimo_mensaje: ultimaBurbujaGuardada.substring(0, 200) })
             .eq("id", convExist.id);
         }
+      }
     } catch (txtErr) {
       console.error("❌ [8/10] Error en el flujo de mensajes:", txtErr.message, txtErr.stack);
     }
