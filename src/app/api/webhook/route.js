@@ -137,24 +137,39 @@ export async function POST(solicitud) {
       return await marcarEscribiendoMetaAPI(to, plataforma);
     };
 
-    // === PASO 1: BUSCAR O CREAR CONVERSACIÓN (ATÓMICO) ===
+    // === PASO 0: JITTER PARA EVITAR RACE CONDITIONS ===
+    // Webhooks concurrentes se separan por un tiempo aleatorio
+    await sleep(Math.floor(Math.random() * 2000));
+
+    // === PASO 1: BUSCAR O CREAR CONVERSACIÓN (ÚNICA) ===
     const variantesId = remitenteId.startsWith("52")
       ? [remitenteId, remitenteId.replace("52", "521")]
       : [remitenteId];
     
     let convExist = null;
-    let { data: todasConvs } = await supabase
+    
+    // Intentar encontrar
+    let { data: matches } = await supabase
       .from("conversaciones")
       .select("*, prospectos(*)")
       .in("id_plataforma", variantesId)
       .eq("plataforma", plataforma)
       .order("creado_en", { ascending: true });
 
-    if (todasConvs && todasConvs.length > 0) {
-      convExist = todasConvs[0];
-      // Si hay duplicadas, las limpiaremos luego de procesar el mensaje para no retrasar la respuesta
+    if (matches && matches.length > 0) {
+      convExist = matches[0];
+      
+      // LIMPIEZA AGRESIVA: Si hay duplicadas, mover mensajes y borrar
+      if (matches.length > 1) {
+        console.log(`🧹 Consolidando ${matches.length} duplicados para ${remitenteId}`);
+        for (let i = 1; i < matches.length; i++) {
+          const dup = matches[i];
+          await supabase.from("mensajes").update({ conversacion_id: convExist.id }).eq("conversacion_id", dup.id);
+          await supabase.from("conversaciones").delete().eq("id", dup.id);
+        }
+      }
     } else {
-      // Intentar crear
+      // Crear una sola
       const { data: nuevaC, error: errC } = await supabase
         .from("conversaciones")
         .insert({
@@ -166,24 +181,22 @@ export async function POST(solicitud) {
         .single();
       
       if (errC) {
-        // Probablemente otro webhook la creó al mismo tiempo, buscar de nuevo
-        const { data: retryC } = await supabase
+        // Si falló (ej. por constraint o race condition), buscar de nuevo
+        let { data: retry } = await supabase
           .from("conversaciones")
-          .select("*")
+          .select("*, prospectos(*)")
           .in("id_plataforma", variantesId)
           .eq("plataforma", plataforma)
           .maybeSingle();
-        convExist = retryC;
+        convExist = retry;
       } else {
         convExist = nuevaC;
       }
     }
 
-    if (!convExist) {
-      return NextResponse.json({ error: "No se pudo obtener conversación" }, { status: 200 });
-    }
+    if (!convExist) return NextResponse.json({ error: "Falla conv" }, { status: 200 });
 
-    // === PASO 2: GUARDAR MENSAJE Y BLOQUEAR DUPLICADOS ===
+    // === PASO 2: BLOQUEO DE MENSAJE DUPLICADO ===
     const { data: existeMsg } = await supabase
       .from("mensajes")
       .select("id")
@@ -191,11 +204,12 @@ export async function POST(solicitud) {
       .maybeSingle();
 
     if (existeMsg) {
-      console.log("⏭️ [6/10] Mensaje ya procesado:", mensajeId);
+      console.log("⏭️ Mensaje duplicado detectado, ignorando:", mensajeId);
       return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
     }
 
-    const { error: errInsMsg } = await supabase.from("mensajes").insert({
+    // Insertar mensaje del usuario (esto actúa como lock final)
+    const { error: errLock } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
       remitente: "usuario",
       contenido: texto,
@@ -203,12 +217,10 @@ export async function POST(solicitud) {
       tipo: "texto"
     });
 
-    if (errInsMsg) {
-      // Si falla por duplicado, salimos
-      if (errInsMsg.message?.includes("duplicate") || errInsMsg.code === "23505") {
+    if (errLock) {
+      if (errLock.code === "23505" || errLock.message?.includes("duplicate")) {
         return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
       }
-      console.error("❌ Error guardando mensaje usuario:", errInsMsg.message);
     }
 
     // Actualizar nombre si ahora lo tenemos y antes no
