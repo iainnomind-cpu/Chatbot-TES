@@ -3,8 +3,18 @@
 import { useAuth } from '@/componentes/AuthProvider'
 import PaginaLogin from '@/app/login/page'
 
+import { usePathname } from 'next/navigation'
+
 export default function AuthGuard({ children }) {
   const { autenticado, cargando } = useAuth()
+  const pathname = usePathname()
+
+  // Rutas que no requieren login
+  const rutasPublicas = ['/privacidad', '/eliminacion-datos', '/login']
+
+  if (rutasPublicas.includes(pathname)) {
+    return children
+  }
 
   if (cargando) {
     return (
