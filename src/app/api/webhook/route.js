@@ -778,6 +778,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             .eq("id", prosExist.id);
         }
       }
+    }
 
       // --- NOTIFICACIÓN AL ADMINISTRADOR ---
       const adminPhone = process.env.ADMIN_PHONE_NUMBER;
