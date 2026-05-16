@@ -862,7 +862,8 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
         if (
           partesRespuesta.length > 0 &&
-          partesRespuesta[0].toLowerCase().includes("momento")
+          (partesRespuesta[0].toLowerCase().includes("momento") || 
+           partesRespuesta[0].toLowerCase().includes("permíteme"))
         ) {
           textoIntro = partesRespuesta[0];
           textoCaption = partesRespuesta.slice(1).join("\n\n");
