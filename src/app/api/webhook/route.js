@@ -700,42 +700,57 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     }
 
     // 6. Lógica de Citas (Si la intención es CIERRE_CITA)
-    if (intencion === "CIERRE_CITA" && prosExist) {
-      const { data: citasExistentes } = await supabase
-        .from("citas")
-        .select("id, fecha, hora")
-        .eq("prospecto_id", prosExist.id)
-        .eq("estado", "pendiente")
-        .order("creado_en", { ascending: false })
-        .limit(1);
-
-      const citaExistente =
-        citasExistentes && citasExistentes.length > 0
-          ? citasExistentes[0]
-          : null;
-
-      let fCitaStr = datos.fecha_cita;
-      const regexFecha = /^\d{4}-\d{2}-\d{2}$/;
-      if (!fCitaStr || !regexFecha.test(fCitaStr)) {
-        const diaDefecto = new Date();
-        diaDefecto.setDate(diaDefecto.getDate() + 1);
-        fCitaStr = diaDefecto.toISOString().split("T")[0];
+    if (intencion === "CIERRE_CITA") {
+      // Asegurarnos de tener un prospecto vinculado antes de crear la cita
+      if (!prosExist) {
+        console.log("🔍 [6/10] Prospecto no encontrado en sync previo, intentando recuperación final...");
+        const { data: pRecheck } = await supabase.from("prospectos").select("*").eq("telefono", remitenteId).maybeSingle();
+        if (pRecheck) {
+          prosExist = pRecheck;
+        } else {
+          // Crear prospecto de emergencia para no perder la cita
+          const { data: pEmergencia } = await supabase.from("prospectos").insert({
+            nombre: (nombrePerfil && nombrePerfil !== "Prospecto") ? nombrePerfil : (datos.nombre_alumno || "Interesado"),
+            nombre_alumno: datos.nombre_alumno || null,
+            telefono: remitenteId,
+            canal: plataforma,
+            estado: "nuevo"
+          }).select("*").single();
+          if (pEmergencia) prosExist = pEmergencia;
+        }
       }
 
-      if (!citaExistente) {
-        const nombreParaCita = prosExist.nombre_alumno || prosExist.nombre || nombrePerfil || "Prospecto";
-        const insertCita = {
-          prospecto_id: prosExist.id,
-          fecha: fCitaStr,
-          hora: datos.hora_cita || "16:00",
-          tipo: "Inscripción / Sesión Informativa",
-          estado: "pendiente",
-          nombre_alumno: nombreParaCita
-        };
-        console.log("📅 Creando cita oficial:", insertCita);
-        const { error: insErr } = await supabase
+      if (prosExist) {
+        const { data: citasExistentes } = await supabase
           .from("citas")
-          .insert(insertCita);
+          .select("id, fecha, hora")
+          .eq("prospecto_id", prosExist.id)
+          .eq("estado", "pendiente")
+          .order("creado_en", { ascending: false })
+          .limit(1);
+
+        const citaExistente = citasExistentes && citasExistentes.length > 0 ? citasExistentes[0] : null;
+
+        let fCitaStr = datos.fecha_cita;
+        const regexFecha = /^\d{4}-\d{2}-\d{2}$/;
+        if (!fCitaStr || !regexFecha.test(fCitaStr)) {
+          const diaDefecto = new Date();
+          diaDefecto.setDate(diaDefecto.getDate() + 1);
+          fCitaStr = diaDefecto.toISOString().split("T")[0];
+        }
+
+        if (!citaExistente) {
+          const nombreParaCita = datos.nombre_alumno || prosExist.nombre_alumno || prosExist.nombre || nombrePerfil || "Prospecto";
+          const insertCita = {
+            prospecto_id: prosExist.id,
+            fecha: fCitaStr,
+            hora: datos.hora_cita || "16:00",
+            tipo: "Inscripción / Sesión Informativa",
+            estado: "pendiente",
+            nombre_alumno: nombreParaCita
+          };
+          console.log("📅 Creando cita oficial:", insertCita);
+          const { error: insErr } = await supabase.from("citas").insert(insertCita);
         if (insErr) {
           console.error("❌ Error insertando cita:", insErr.message);
         } else {
