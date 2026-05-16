@@ -285,6 +285,14 @@ export default function PaginaProspectos() {
                         >
                           <span className="material-symbols-outlined text-[18px]">event_available</span>
                         </button>
+                        <div className="w-[1px] h-4 bg-slate-200 mx-0.5"></div>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteProspecto(p.id); }}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                          title="Eliminar Prospecto"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
