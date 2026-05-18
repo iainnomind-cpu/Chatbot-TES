@@ -1093,7 +1093,16 @@ async function obtenerNombrePerfilMeta(id, plataforma) {
       if (plataforma === "messenger") {
         return `${res.data.first_name || ""} ${res.data.last_name || ""}`.trim() || "Prospecto";
       } else {
-        return res.data.name || res.data.username || "Prospecto";
+        const name = res.data.name;
+        const username = res.data.username;
+        if (name && username && name.toLowerCase() !== username.toLowerCase()) {
+           return `${name} (@${username})`;
+        } else if (username) {
+           return `@${username}`;
+        } else if (name) {
+           return name;
+        }
+        return "Prospecto";
       }
     }
   } catch (e) {
