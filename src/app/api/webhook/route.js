@@ -997,6 +997,12 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             console.log("🖼️ [8/10] Imagen+caption enviada:", imgOk ? "OK" : "FALLÓ");
 
             if (imgOk && typeof textoCierre === 'string' && textoCierre.trim()) {
+              await supabase.from("mensajes").insert({
+                conversacion_id: convExist.id,
+                remitente: "bot",
+                contenido: textoCierre.trim(),
+                tipo: "texto",
+              });
               await sleep(1000);
               await enviarRespuesta(remitenteId, textoCierre);
             }
@@ -1008,6 +1014,12 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         // Si hay botones, enviarlos como mensaje separado DESPUÉS de la imagen
         if (opcionesLimpias) {
           try {
+            await supabase.from("mensajes").insert({
+              conversacion_id: convExist.id,
+              remitente: "bot",
+              contenido: "¿Qué prefieres? 👇\n" + opcionesLimpias.map(o => "• " + o.title).join("\n"),
+              tipo: "texto",
+            });
             await sleep(1000);
             await enviarRespuesta(remitenteId, "¿Qué prefieres? 👇", null, opcionesLimpias);
           } catch (e) {
