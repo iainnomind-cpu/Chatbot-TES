@@ -29,10 +29,11 @@ export async function POST(solicitud) {
 
     let plataforma = null;
     let remitenteId = null;
+    let mensajeId = null;
     let texto = "";
     let nombrePerfil = "Prospecto";
-    let mensajeId = null;
     let vieneDeAnuncio = false;
+    let receptorOriginal = "me";
 
     if (cuerpo.object === "whatsapp_business_account") {
       const entrada = cuerpo.entry?.[0];
@@ -82,6 +83,7 @@ export async function POST(solicitud) {
         if (evento.message && !evento.message.is_echo) {
           plataforma = cuerpo.object === "page" ? "messenger" : "instagram";
           remitenteId = String(evento.sender.id);
+          receptorOriginal = evento.recipient?.id ? String(evento.recipient.id) : "me";
           mensajeId = evento.message.mid;
           texto = evento.message.text || "";
 
@@ -130,11 +132,11 @@ export async function POST(solicitud) {
     }
 
     let enviarRespuesta = async (to, mensaje, imagen = null, opciones = null) => {
-      return await enviarMensajeMetaAPI(to, mensaje, imagen, opciones, plataforma);
+      return await enviarMensajeMetaAPI(to, mensaje, imagen, opciones, plataforma, receptorOriginal);
     };
 
     let marcarEscribiendoWrapper = async (to) => {
-      return await marcarEscribiendoMetaAPI(to, plataforma);
+      return await marcarEscribiendoMetaAPI(to, plataforma, receptorOriginal);
     };
 
     // === PASO 0: JITTER PARA EVITAR RACE CONDITIONS ===
@@ -250,7 +252,11 @@ export async function POST(solicitud) {
       );
       return NextResponse.json({ estado: "pausado_humano" }, { status: 200 });
     }
-    console.log("🤖 [7/10] Bot ACTIVO — consultando AlexIA para", remitenteId, "en", plataforma);
+    
+    // 8. Marcar como "escribiendo..." si es posible
+    await marcarEscribiendoWrapper(remitenteId);
+
+    console.log(`🤖 [7/10] Bot ACTIVO — consultando AlexIA para ${remitenteId} en ${plataforma}`);
 
     // --- SE ELIMINÓ LA PAUSA AUTOMÁTICA AQUÍ ---
     // Ahora permitimos que la IA analice si el usuario solo está agradeciendo
@@ -1130,7 +1136,7 @@ async function obtenerNombrePerfilMeta(id, plataforma) {
   return "Prospecto";
 }
 
-async function marcarEscribiendoMetaAPI(to, plataforma) {
+async function marcarEscribiendoMetaAPI(to, plataforma, receptorOriginal = "me") {
   try {
     if (plataforma === "whatsapp") {
       const token = process.env.META_WHATSAPP_TOKEN;
@@ -1144,7 +1150,8 @@ async function marcarEscribiendoMetaAPI(to, plataforma) {
       );
     } else if (plataforma === "messenger" || plataforma === "instagram") {
       const token = process.env.META_PAGE_TOKEN;
-      const url = `https://graph.facebook.com/v20.0/me/messages`;
+      const endpointId = (plataforma === "instagram" && receptorOriginal && receptorOriginal !== "me") ? receptorOriginal : "me";
+      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
       if (!token) return;
       await axios.post(
         url,
@@ -1153,11 +1160,11 @@ async function marcarEscribiendoMetaAPI(to, plataforma) {
       );
     }
   } catch (e) {
-    console.error("❌ Error marcarEscribiendoMetaAPI:", e.response?.data || e.message);
+    console.error("❌ Error marcarEscribiendoMetaAPI:", e.response?.data?.error?.message || e.message);
   }
 }
 
-async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null, plataforma = "whatsapp") {
+async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null, plataforma = "whatsapp", receptorOriginal = "me") {
   try {
     if (plataforma === "whatsapp") {
       const token = process.env.META_WHATSAPP_TOKEN;
@@ -1189,7 +1196,8 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       return true;
     } else if (plataforma === "messenger" || plataforma === "instagram") {
       const token = process.env.META_PAGE_TOKEN;
-      const url = `https://graph.facebook.com/v20.0/me/messages`;
+      const endpointId = (plataforma === "instagram" && receptorOriginal && receptorOriginal !== "me") ? receptorOriginal : "me";
+      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
       let payload = { 
         recipient: { id: to }, 
         messaging_type: "RESPONSE",
