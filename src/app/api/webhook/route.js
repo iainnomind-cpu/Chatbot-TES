@@ -661,6 +661,10 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           if (datos.lead_score && !isInvalidName(datos.lead_score))
             updateData.lead_score = datos.lead_score;
 
+          if (prosExist.estado === "nuevo" && Object.keys(updateData).length > 1) {
+            updateData.estado = "en_proceso";
+          }
+
           const { error: crmError } = await supabase
             .from("prospectos")
             .update(updateData)

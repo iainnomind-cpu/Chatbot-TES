@@ -1,5 +1,6 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
+import axios from 'axios'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,11 +61,45 @@ export async function PATCH(solicitud) {
     .from('citas')
     .update(datosActualizacion)
     .eq('id', id)
-    .select('*, prospectos(nombre, telefono)')
+    .select('*, prospectos(nombre, telefono, canal)')
     .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Si la cita fue confirmada, enviar mensaje de confirmación
+  if (datosActualizacion.estado === 'confirmada' && cita?.prospectos?.telefono) {
+    const telefono = cita.prospectos.telefono;
+    const canal = cita.prospectos.canal || 'whatsapp';
+    const nombre = cita.prospectos.nombre || 'amigo(a)';
+    const msj = `¡Hola ${nombre}! 🎉 Te confirmamos que tu cita para el ${cita.fecha} a las ${cita.hora} ha sido agendada con éxito. Te esperamos en nuestras instalaciones. ¡Nos vemos pronto!`;
+
+    try {
+      if (canal === 'messenger' || canal === 'instagram') {
+        const token = process.env.META_PAGE_TOKEN;
+        if (token) {
+          await axios.post(`https://graph.facebook.com/v20.0/me/messages`, {
+            recipient: { id: telefono },
+            message: { text: msj }
+          }, { params: { access_token: token } });
+        }
+      } else {
+        const token = process.env.META_WHATSAPP_TOKEN;
+        const phoneId = process.env.META_PHONE_NUMBER_ID;
+        if (token && phoneId) {
+          await axios.post(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+            messaging_product: 'whatsapp',
+            to: telefono,
+            type: 'text',
+            text: { body: msj }
+          }, { headers: { Authorization: `Bearer ${token}` } });
+        }
+      }
+      console.log(`✅ Mensaje de confirmación enviado a ${telefono} vía ${canal}`);
+    } catch (e) {
+      console.error(`❌ Error enviando mensaje de confirmación a ${telefono}:`, e.response?.data || e.message);
+    }
   }
 
   return NextResponse.json(cita)
