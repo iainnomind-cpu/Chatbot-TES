@@ -542,8 +542,9 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
       await escalarAHumano(convExist.id, prosExist?.id, motivo, categoria);
 
-      const msjEscalamiento =
-        "Voy a transferir tu solicitud ahora mismo con uno de nuestros asesores.\n\nRevisará tu caso para darte una respuesta personalizada en unos momentos.\n\nUn asesor se pondrá en contacto contigo a la brevedad por este medio para darte seguimiento puntual. ¡Gracias por tu paciencia!";
+      const msjEscalamiento = respuesta && respuesta.trim().length > 5 
+        ? respuesta.trim()
+        : "Voy a transferir tu solicitud ahora mismo con uno de nuestros asesores.\n\nRevisará tu caso para darte una respuesta personalizada en unos momentos.\n\nUn asesor se pondrá en contacto contigo a la brevedad por este medio para darte seguimiento puntual. ¡Gracias por tu paciencia!";
 
       await enviarRespuesta(remitenteId, msjEscalamiento);
       // Dividir por saltos de línea para simular el envío de varios mensajes
