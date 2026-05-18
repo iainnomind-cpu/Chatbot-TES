@@ -351,7 +351,7 @@ export default function BarraSuperior() {
                         }
                         if (n.tipo === 'mensaje') router.push('/inbox')
                         else if (n.tipo === 'prospecto') router.push('/prospectos')
-                        else if (n.tipo === 'cita') router.push('/citas')
+                        else if (n.tipo === 'cita' || n.tipo === 'cita_nueva') router.push('/citas')
                         setNotificacionesAbiertas(false)
                       }}
                       className={`p-4 border-b border-slate-50 hover:bg-slate-50 flex gap-3 cursor-pointer transition-colors ${yaLeida ? 'opacity-50' : ''}`}

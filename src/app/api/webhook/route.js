@@ -719,6 +719,12 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           .from("prospectos")
           .update({ nombre_alumno: nombreFinal })
           .eq("id", prosExist.id);
+        
+        await supabase
+          .from("conversaciones")
+          .update({ nombre_contacto: nombreFinal })
+          .eq("id", convExist.id);
+
         prosExist.nombre_alumno = nombreFinal;
       }
     }
@@ -1162,7 +1168,8 @@ async function marcarEscribiendoMetaAPI(to, plataforma, receptorOriginal = "me")
       );
     } else if (plataforma === "messenger" || plataforma === "instagram") {
       const token = process.env.META_PAGE_TOKEN;
-      const url = `https://graph.facebook.com/v20.0/me/messages`;
+      const endpointId = plataforma === "instagram" ? "121181614575157" : "me";
+      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
       if (!token) return;
       await axios.post(
         url,
@@ -1207,7 +1214,8 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       return true;
     } else if (plataforma === "messenger" || plataforma === "instagram") {
       const token = process.env.META_PAGE_TOKEN;
-      const url = `https://graph.facebook.com/v20.0/me/messages`;
+      const endpointId = plataforma === "instagram" ? "121181614575157" : "me";
+      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
       let payload = { 
         recipient: { id: to }, 
         messaging_type: "RESPONSE",
