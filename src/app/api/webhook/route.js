@@ -520,7 +520,21 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         datos?.escalation_reason ||
         "Usuario solicitó hablar con un asesor o hizo pregunta compleja";
       const categoria = datos?.escalation_category || "pregunta_especifica";
-      await escalarAHumano(convExist.id, prosExist.id, motivo, categoria);
+      if (!prosExist) {
+        console.log("Creando prospecto de emergencia para escalamiento...");
+        const { data: pEmergencia } = await supabase.from("prospectos").insert({
+          nombre: nombrePerfil !== "Prospecto" ? nombrePerfil : "Interesado",
+          telefono: remitenteId,
+          canal: plataforma,
+          estado: "nuevo"
+        }).select("*").single();
+        if (pEmergencia) {
+          prosExist = pEmergencia;
+          await supabase.from("conversaciones").update({ prospecto_id: pEmergencia.id }).eq("id", convExist.id);
+        }
+      }
+
+      await escalarAHumano(convExist.id, prosExist?.id, motivo, categoria);
 
       const msjEscalamiento =
         "Voy a transferir tu solicitud ahora mismo con uno de nuestros asesores.\n\nRevisará tu caso para darte una respuesta personalizada en unos momentos.\n\nUn asesor se pondrá en contacto contigo a la brevedad por este medio para darte seguimiento puntual. ¡Gracias por tu paciencia!";
