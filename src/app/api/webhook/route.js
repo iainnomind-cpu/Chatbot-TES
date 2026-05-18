@@ -532,7 +532,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           nombre: nombrePerfil !== "Prospecto" ? nombrePerfil : "Interesado",
           telefono: remitenteId,
           canal: plataforma,
-          estado: "nuevo"
+          estado: "Borrador"
         }).select("*").single();
         if (pEmergencia) {
           prosExist = pEmergencia;
@@ -631,7 +631,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
                 horario: datos.horario || null,
                 curso_interes: datos.curso_interes || null,
                 canal: plataforma,
-                estado: "nuevo",
+                estado: "Borrador",
               })
               .select("*")
               .single();
@@ -667,8 +667,8 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           if (datos.lead_score && !isInvalidName(datos.lead_score))
             updateData.lead_score = datos.lead_score;
 
-          if (prosExist.estado === "nuevo" && Object.keys(updateData).length > 1) {
-            updateData.estado = "en_proceso";
+          if (prosExist.estado === "Borrador" && Object.keys(updateData).length > 1) {
+            updateData.estado = "Interesado";
           }
 
           const { error: crmError } = await supabase
