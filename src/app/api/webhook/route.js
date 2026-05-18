@@ -1150,8 +1150,7 @@ async function marcarEscribiendoMetaAPI(to, plataforma, receptorOriginal = "me")
       );
     } else if (plataforma === "messenger" || plataforma === "instagram") {
       const token = process.env.META_PAGE_TOKEN;
-      const endpointId = (plataforma === "instagram" && receptorOriginal && receptorOriginal !== "me") ? receptorOriginal : "me";
-      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
+      const url = `https://graph.facebook.com/v20.0/me/messages`;
       if (!token) return;
       await axios.post(
         url,
@@ -1196,8 +1195,7 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       return true;
     } else if (plataforma === "messenger" || plataforma === "instagram") {
       const token = process.env.META_PAGE_TOKEN;
-      const endpointId = (plataforma === "instagram" && receptorOriginal && receptorOriginal !== "me") ? receptorOriginal : "me";
-      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
+      const url = `https://graph.facebook.com/v20.0/me/messages`;
       let payload = { 
         recipient: { id: to }, 
         messaging_type: "RESPONSE",
