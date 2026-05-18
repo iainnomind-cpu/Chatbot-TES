@@ -1072,14 +1072,14 @@ async function obtenerNombrePerfilMeta(id, plataforma) {
   try {
     const token = process.env.META_PAGE_TOKEN;
     if (!token || !id || id.length < 5) return "Prospecto";
-    const campos = plataforma === "messenger" ? "first_name,last_name" : "name";
+    const campos = plataforma === "messenger" ? "first_name,last_name" : "name,username";
     const url = `https://graph.facebook.com/v20.0/${id}?fields=${campos}&access_token=${token}`;
     const res = await axios.get(url);
     if (res.data) {
       if (plataforma === "messenger") {
         return `${res.data.first_name || ""} ${res.data.last_name || ""}`.trim() || "Prospecto";
       } else {
-        return res.data.name || "Prospecto";
+        return res.data.name || res.data.username || "Prospecto";
       }
     }
   } catch (e) {
@@ -1153,8 +1153,11 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       if (imagen) {
         payload.message.attachment = {
           type: "image",
-          payload: { url: imagen, is_reusable: true }
+          payload: { url: imagen }
         };
+        if (plataforma === "messenger") {
+          payload.message.attachment.payload.is_reusable = true;
+        }
         // Meta doesn't support caption inside attachment for messenger easily, so send text separately if needed.
         if (mensaje) {
             // First send image, then we'll send text in a second request

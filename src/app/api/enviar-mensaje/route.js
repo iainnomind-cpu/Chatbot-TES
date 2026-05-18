@@ -23,13 +23,15 @@ export async function POST(solicitud) {
       if (tipo === 'image' && url_archivo) {
         payload.message.attachment = {
           type: 'image',
-          payload: { url: url_archivo, is_reusable: true }
+          payload: { url: url_archivo }
         };
+        if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
       } else if (tipo === 'document' && url_archivo) {
         payload.message.attachment = {
           type: 'file',
-          payload: { url: url_archivo, is_reusable: true }
+          payload: { url: url_archivo }
         };
+        if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
       } else {
         payload.message.text = text;
       }
