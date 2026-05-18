@@ -1190,7 +1190,11 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
     } else if (plataforma === "messenger" || plataforma === "instagram") {
       const token = process.env.META_PAGE_TOKEN;
       const url = `https://graph.facebook.com/v20.0/me/messages`;
-      let payload = { recipient: { id: to }, message: {} };
+      let payload = { 
+        recipient: { id: to }, 
+        messaging_type: "RESPONSE",
+        message: {} 
+      };
 
       if (imagen) {
         payload.message.attachment = {
@@ -1221,10 +1225,11 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       }
 
       await axios.post(url, payload, { params: { access_token: token } });
+      console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en ${plataforma}`);
       return true;
     }
   } catch (error) {
-    console.error(`❌ ERROR META API (${plataforma}):`, error.response?.data || error.message);
+    console.error(`❌ ERROR META API (${plataforma}) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
     return false;
   }
 }
