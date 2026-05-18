@@ -1092,25 +1092,40 @@ async function obtenerNombrePerfilMeta(id, plataforma) {
     if (!token || !id || id.length < 5) return "Prospecto";
     const campos = plataforma === "messenger" ? "first_name,last_name" : "name,username";
     const url = `https://graph.facebook.com/v20.0/${id}?fields=${campos}&access_token=${token}`;
-    const res = await axios.get(url);
-    if (res.data) {
-      if (plataforma === "messenger") {
-        return `${res.data.first_name || ""} ${res.data.last_name || ""}`.trim() || "Prospecto";
-      } else {
-        const name = res.data.name;
-        const username = res.data.username;
-        if (name && username && name.toLowerCase() !== username.toLowerCase()) {
-           return `${name} (@${username})`;
-        } else if (username) {
-           return `@${username}`;
-        } else if (name) {
-           return name;
+    
+    try {
+      const res = await axios.get(url);
+      if (res.data) {
+        if (plataforma === "messenger") {
+          return `${res.data.first_name || ""} ${res.data.last_name || ""}`.trim() || "Prospecto";
+        } else {
+          const name = res.data.name;
+          const username = res.data.username;
+          if (name && username && name.toLowerCase() !== username.toLowerCase()) {
+             return `${name} (@${username})`;
+          } else if (username) {
+             return `@${username}`;
+          } else if (name) {
+             return name;
+          }
         }
-        return "Prospecto";
+      }
+    } catch (e1) {
+      // Fallback para Instagram si falla con username
+      if (plataforma === "instagram") {
+        const urlFallback = `https://graph.facebook.com/v20.0/${id}?fields=name&access_token=${token}`;
+        const resFallback = await axios.get(urlFallback);
+        if (resFallback.data?.name) return resFallback.data.name;
+      } else {
+        throw e1;
       }
     }
   } catch (e) {
-    console.error("❌ Error obteniendo perfil de Meta:", e.response?.data?.error?.message || e.message);
+    // Si sigue fallando, simplemente retornamos Prospecto y no hacemos ruido
+    const errMsg = e.response?.data?.error?.message || e.message;
+    if (!errMsg.includes('IGSID not found')) {
+      console.warn(`⚠️ Aviso: No se pudo obtener perfil de Meta para ${id} (${plataforma}):`, errMsg);
+    }
   }
   return "Prospecto";
 }
