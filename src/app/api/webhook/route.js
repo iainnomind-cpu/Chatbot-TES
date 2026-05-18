@@ -165,7 +165,7 @@ export async function POST(solicitud) {
       const { data: nuevaC, error: errNuevaC } = await supabase.from("conversaciones").insert({
         plataforma,
         id_plataforma: remitenteId,
-        nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : null
+        nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : "Prospecto"
       }).select("id").maybeSingle();
       
       if (errNuevaC) console.error("❌ Error creando conv:", errNuevaC.message);
