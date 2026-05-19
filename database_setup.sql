@@ -64,7 +64,9 @@ CREATE TABLE IF NOT EXISTS citas (
 CREATE TABLE IF NOT EXISTS conversaciones (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   prospecto_id uuid REFERENCES prospectos(id) ON DELETE CASCADE,
-  id_plataforma text NOT NULL, -- WhatsApp / FB Messenger
+  id_plataforma text NOT NULL, -- WhatsApp / FB Messenger / Instagram
+  plataforma text,
+  nombre_contacto text,
   estado text DEFAULT 'abierta',
   asignado_a_humano boolean DEFAULT false,
   escalation_reason text,
@@ -80,6 +82,8 @@ CREATE TABLE IF NOT EXISTS mensajes (
   remitente text NOT NULL CHECK (remitente IN ('usuario', 'bot', 'agente')),
   tipo text DEFAULT 'texto',
   contenido text,
+  url_archivo text,
+  id_mensaje_meta text UNIQUE,
   creado_en timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
