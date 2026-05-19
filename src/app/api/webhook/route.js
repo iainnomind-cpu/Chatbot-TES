@@ -1218,8 +1218,11 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
     } else if (plataforma === "messenger") {
       const token = process.env.META_PAGE_TOKEN;
       const url = `https://graph.facebook.com/v20.0/me/messages`;
+      
+      console.log(`🚀 [PRE-SEND MS] Plataforma: ${plataforma} | Sender (Pagina): ${receptorOriginal} | Recipient (Usuario): ${to} | Endpoint: ${url} | Token Parcial: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
+
       let payload = { 
-        recipient: { id: to }, 
+        recipient: { id: String(to) }, 
         messaging_type: "RESPONSE",
         message: {} 
       };
@@ -1255,8 +1258,10 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       const token = process.env.META_PAGE_TOKEN;
       const url = `https://graph.facebook.com/v20.0/me/messages`;
       
+      console.log(`🚀 [PRE-SEND IG] Plataforma: ${plataforma} | Sender (Pagina): ${receptorOriginal} | Recipient (Usuario): ${to} | Endpoint: ${url} | Token Parcial: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
+      
       let payload = { 
-        recipient: { id: to },
+        recipient: { id: String(to) },
         message: {} 
       };
 
