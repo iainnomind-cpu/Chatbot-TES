@@ -238,7 +238,7 @@ export async function POST(solicitud) {
     let prosExist = convFull?.prospectos || null;
     
     if (!prosExist) {
-      const { data: pTel } = await supabase.from("prospectos").select("*").eq("telefono", remitenteId).maybeSingle();
+      const { data: pTel } = await supabase.from("prospectos").select("*").eq("telefono", remitenteId).eq("canal", plataforma).maybeSingle();
       if (pTel) {
         prosExist = pTel;
         await supabase.from("conversaciones").update({ prospecto_id: pTel.id }).eq("id", convExist.id);
@@ -1185,9 +1185,89 @@ async function marcarEscribiendoMetaAPI(to, plataforma, receptorOriginal = "me")
   }
 }
 
-async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null, plataforma = "whatsapp", receptorOriginal = "me") {
+async function enviarMensajeMessenger(to, mensaje, imagen, opciones, receptorOriginal) {
   try {
-    if (plataforma === "whatsapp") {
+    const token = process.env.META_PAGE_TOKEN;
+    const url = `https://graph.facebook.com/v20.0/me/messages`;
+    
+    console.log(`🚀 [PRE-SEND MS] Sender (Pagina): ${receptorOriginal} | Recipient: ${to} | Endpoint: ${url} | Token: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
+
+    let payload = { 
+      recipient: { id: String(to) }, 
+      messaging_type: "RESPONSE",
+      message: {} 
+    };
+
+    if (imagen) {
+      payload.message.attachment = {
+        type: "image",
+        payload: { url: imagen, is_reusable: true }
+      };
+      if (mensaje) {
+          await axios.post(url, payload, { params: { access_token: token } });
+          payload.message = { text: mensaje };
+          delete payload.message.attachment;
+      }
+    } else if (opciones && opciones.length > 0) {
+      payload.message = {
+        text: (mensaje || "¿Qué prefieres?").substring(0, 1000),
+        quick_replies: opciones.slice(0, 13).map((opt) => ({
+          content_type: "text",
+          title: opt.substring(0, 20),
+          payload: opt.substring(0, 1000)
+        }))
+      };
+    } else {
+      payload.message = { text: mensaje };
+    }
+
+    await axios.post(url, payload, { params: { access_token: token } });
+    console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en messenger`);
+    return true;
+  } catch (error) {
+    console.error(`❌ ERROR META API (messenger) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
+    return false;
+  }
+}
+
+async function enviarMensajeInstagram(to, mensaje, imagen, receptorOriginal) {
+  try {
+    const token = process.env.META_PAGE_TOKEN;
+    const url = `https://graph.facebook.com/v20.0/me/messages`;
+    
+    console.log(`🚀 [PRE-SEND IG] Sender (Pagina): ${receptorOriginal} | Recipient: ${to} | Endpoint: ${url} | Token: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
+    
+    let payload = { 
+      recipient: { id: String(to) },
+      message: {} 
+    };
+
+    if (imagen) {
+      payload.message.attachment = {
+        type: "image",
+        payload: { url: imagen }
+      };
+      if (mensaje) {
+          await axios.post(url, payload, { params: { access_token: token } });
+          payload.message = { text: mensaje };
+          delete payload.message.attachment;
+      }
+    } else {
+      payload.message = { text: mensaje };
+    }
+
+    await axios.post(url, payload, { params: { access_token: token } });
+    console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en instagram`);
+    return true;
+  } catch (error) {
+    console.error(`❌ ERROR META API (instagram) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
+    return false;
+  }
+}
+
+async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null, plataforma = "whatsapp", receptorOriginal = "me") {
+  if (plataforma === "whatsapp") {
+    try {
       const token = process.env.META_WHATSAPP_TOKEN;
       const phoneId = process.env.META_PHONE_NUMBER_ID;
       const url = `https://graph.facebook.com/v20.0/${phoneId}/messages`;
@@ -1215,76 +1295,13 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
 
       await axios.post(url, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
       return true;
-    } else if (plataforma === "messenger") {
-      const token = process.env.META_PAGE_TOKEN;
-      const url = `https://graph.facebook.com/v20.0/me/messages`;
-      
-      console.log(`🚀 [PRE-SEND MS] Plataforma: ${plataforma} | Sender (Pagina): ${receptorOriginal} | Recipient (Usuario): ${to} | Endpoint: ${url} | Token Parcial: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
-
-      let payload = { 
-        recipient: { id: String(to) }, 
-        messaging_type: "RESPONSE",
-        message: {} 
-      };
-
-      if (imagen) {
-        payload.message.attachment = {
-          type: "image",
-          payload: { url: imagen, is_reusable: true }
-        };
-        if (mensaje) {
-            await axios.post(url, payload, { params: { access_token: token } });
-            payload.message = { text: mensaje };
-            delete payload.message.attachment;
-        }
-      } else if (opciones && opciones.length > 0) {
-        payload.message = {
-          text: (mensaje || "¿Qué prefieres?").substring(0, 1000),
-          quick_replies: opciones.slice(0, 13).map((opt) => ({
-            content_type: "text",
-            title: opt.substring(0, 20),
-            payload: opt.substring(0, 1000)
-          }))
-        };
-      } else {
-        payload.message = { text: mensaje };
-      }
-
-      await axios.post(url, payload, { params: { access_token: token } });
-      console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en messenger`);
-      return true;
-
-    } else if (plataforma === "instagram") {
-      const token = process.env.META_PAGE_TOKEN;
-      const url = `https://graph.facebook.com/v20.0/me/messages`;
-      
-      console.log(`🚀 [PRE-SEND IG] Plataforma: ${plataforma} | Sender (Pagina): ${receptorOriginal} | Recipient (Usuario): ${to} | Endpoint: ${url} | Token Parcial: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
-      
-      let payload = { 
-        recipient: { id: String(to) },
-        message: {} 
-      };
-
-      if (imagen) {
-        payload.message.attachment = {
-          type: "image",
-          payload: { url: imagen }
-        };
-        if (mensaje) {
-            await axios.post(url, payload, { params: { access_token: token } });
-            payload.message = { text: mensaje };
-            delete payload.message.attachment;
-        }
-      } else {
-        payload.message = { text: mensaje };
-      }
-
-      await axios.post(url, payload, { params: { access_token: token } });
-      console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en instagram`);
-      return true;
+    } catch (e) {
+      console.error(`❌ ERROR META API (whatsapp) al enviar a ${to}:`, e.message);
+      return false;
     }
-  } catch (error) {
-    console.error(`❌ ERROR META API (${plataforma}) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
-    return false;
+  } else if (plataforma === "messenger") {
+    return await enviarMensajeMessenger(to, mensaje, imagen, opciones, receptorOriginal);
+  } else if (plataforma === "instagram") {
+    return await enviarMensajeInstagram(to, mensaje, imagen, receptorOriginal);
   }
 }
