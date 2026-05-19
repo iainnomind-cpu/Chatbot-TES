@@ -66,6 +66,10 @@ CREATE TABLE IF NOT EXISTS conversaciones (
   prospecto_id uuid REFERENCES prospectos(id) ON DELETE CASCADE,
   id_plataforma text NOT NULL, -- WhatsApp / FB Messenger
   estado text DEFAULT 'abierta',
+  asignado_a_humano boolean DEFAULT false,
+  escalation_reason text,
+  escalation_category text,
+  escalated_at timestamp with time zone,
   ultimo_mensaje timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 

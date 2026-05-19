@@ -1167,16 +1167,18 @@ async function marcarEscribiendoMetaAPI(to, plataforma, receptorOriginal = "me")
         { messaging_product: "whatsapp", recipient_type: "individual", to: to, sender_action: "typing_on" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-    } else if (plataforma === "messenger" || plataforma === "instagram") {
+    } else if (plataforma === "messenger") {
       const token = process.env.META_PAGE_TOKEN;
-      const endpointId = plataforma === "instagram" ? "121181614575157" : "me";
-      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
+      const url = `https://graph.facebook.com/v20.0/me/messages`;
       if (!token) return;
       await axios.post(
         url,
         { recipient: { id: to }, sender_action: "typing_on" },
         { params: { access_token: token } }
       );
+    } else if (plataforma === "instagram") {
+      // Desactivamos typing_on para Instagram temporalmente para evitar error de scope
+      return;
     }
   } catch (e) {
     console.error("❌ Error marcarEscribiendoMetaAPI:", e.response?.data?.error?.message || e.message);
@@ -1213,10 +1215,9 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
 
       await axios.post(url, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
       return true;
-    } else if (plataforma === "messenger" || plataforma === "instagram") {
+    } else if (plataforma === "messenger") {
       const token = process.env.META_PAGE_TOKEN;
-      const endpointId = plataforma === "instagram" ? "121181614575157" : "me";
-      const url = `https://graph.facebook.com/v20.0/${endpointId}/messages`;
+      const url = `https://graph.facebook.com/v20.0/me/messages`;
       let payload = { 
         recipient: { id: to }, 
         messaging_type: "RESPONSE",
@@ -1226,14 +1227,9 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       if (imagen) {
         payload.message.attachment = {
           type: "image",
-          payload: { url: imagen }
+          payload: { url: imagen, is_reusable: true }
         };
-        if (plataforma === "messenger") {
-          payload.message.attachment.payload.is_reusable = true;
-        }
-        // Meta doesn't support caption inside attachment for messenger easily, so send text separately if needed.
         if (mensaje) {
-            // First send image, then we'll send text in a second request
             await axios.post(url, payload, { params: { access_token: token } });
             payload.message = { text: mensaje };
             delete payload.message.attachment;
@@ -1252,7 +1248,34 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       }
 
       await axios.post(url, payload, { params: { access_token: token } });
-      console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en ${plataforma}`);
+      console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en messenger`);
+      return true;
+
+    } else if (plataforma === "instagram") {
+      const token = process.env.META_PAGE_TOKEN;
+      const url = `https://graph.facebook.com/v20.0/me/messages`;
+      
+      let payload = { 
+        recipient: { id: to },
+        message: {} 
+      };
+
+      if (imagen) {
+        payload.message.attachment = {
+          type: "image",
+          payload: { url: imagen }
+        };
+        if (mensaje) {
+            await axios.post(url, payload, { params: { access_token: token } });
+            payload.message = { text: mensaje };
+            delete payload.message.attachment;
+        }
+      } else {
+        payload.message = { text: mensaje };
+      }
+
+      await axios.post(url, payload, { params: { access_token: token } });
+      console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en instagram`);
       return true;
     }
   } catch (error) {

@@ -54,7 +54,8 @@ export async function escalarAHumano(conversacionId, prospectoId, motivo, catego
     .update({
       asignado_a_humano: true,
       escalation_reason: motivo,
-      escalation_category: categoria
+      escalation_category: categoria,
+      escalated_at: now
     })
     .eq('id', conversacionId)
 
