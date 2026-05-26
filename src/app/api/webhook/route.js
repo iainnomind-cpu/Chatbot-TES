@@ -888,7 +888,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         datos.imagen !== "..." &&
         datos.imagen !== "Desconocido"
       ) {
-        imgUrl = await obtenerImagenCDN(datos.imagen);
+        imgUrl = imagenUrl;
       }
     } catch (imgErr) {
       console.error("❌ Error preparando imagen:", imgErr.message);
@@ -1091,23 +1091,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
   }
 }
 
-// Helper para asegurar que las imágenes se sirvan desde una URL 100% estable y sin bloqueos de red
-async function obtenerImagenCDN(nombreArchivo) {
-  if (
-    !nombreArchivo ||
-    nombreArchivo.trim() === "null" ||
-    nombreArchivo.trim() === "..."
-  )
-    return null;
 
-  const archivoLimpio = nombreArchivo.trim();
-  
-  // Intentar desde el repo actual del proyecto
-  const githubCDN = `https://raw.githubusercontent.com/iainnomind-cpu/Chatbot-TES/main/public/cursos/${archivoLimpio}`;
-  
-  console.log("🖼️ URL imagen CDN:", githubCDN);
-  return githubCDN;
-}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
