@@ -575,9 +575,10 @@ export default function PaginaCampanas() {
               ) : (
                 <div className="grid grid-cols-1 gap-6">
                   {datosMostrar.map((campana) => {
-                    const metaInfo = plantillasMeta.find(p => p.name === campana.nombre_plantilla);
-                    const metaStatus = metaInfo?.status || 'NOT_FOUND';
-                    const isMetaApproved = metaStatus === 'APPROVED';
+                    const isRedes = campana.canal === 'messenger' || campana.canal === 'instagram';
+                    const metaInfo = isRedes ? null : plantillasMeta.find(p => p.name === campana.nombre_plantilla);
+                    const metaStatus = isRedes ? 'LISTO' : (metaInfo?.status || 'NOT_FOUND');
+                    const isMetaApproved = isRedes ? true : (metaStatus === 'APPROVED');
 
                     return (
                       <div key={campana.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-blue-300 hover:shadow-md transition-all">
@@ -599,7 +600,7 @@ export default function PaginaCampanas() {
                                   isMetaApproved ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'
                                 }`}>
                                   <span className="material-symbols-outlined text-[10px]">{isMetaApproved ? 'verified' : 'hourglass_empty'}</span>
-                                  META: {metaStatus}
+                                  {isRedes ? `CANAL: ${campana.canal}` : `META: ${metaStatus}`}
                                 </span>
                               </div>
                             </div>
@@ -613,7 +614,7 @@ export default function PaginaCampanas() {
                                 onClick={() => dispararCampana(campana.id)}
                                 disabled={enviando === campana.id || !isMetaApproved}
                                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${enviando === campana.id ? 'text-amber-500 bg-amber-50 animate-pulse' : !isMetaApproved ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-100 bg-blue-50'}`}
-                                title={isMetaApproved ? 'Lanzar Campaña por WhatsApp' : 'No se puede lanzar: La plantilla aún no está aprobada por Meta'}
+                                title={isMetaApproved ? `Lanzar Campaña por ${campana.canal || 'WhatsApp'}` : 'No se puede lanzar: La plantilla aún no está aprobada por Meta'}
                               >
                                 <span className="material-symbols-outlined text-[18px]">{enviando === campana.id ? 'hourglass_top' : 'rocket_launch'}</span>
                               </button>
@@ -638,8 +639,8 @@ export default function PaginaCampanas() {
                           {/* DETALLE DE AUDIENCIA Y PLANTILLA EN LA TARJETA */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-medium mb-5">
                             <div>
-                              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">PLANTILLA (META NAME)</span>
-                              <span className="text-slate-700 bg-slate-50 px-2 py-1 rounded inline-block border border-slate-100 font-mono text-[11px]">{campana.nombre_plantilla || 'No configurada'}</span>
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">{isRedes ? 'MENSAJE / NOTA INTERNA' : 'PLANTILLA (META NAME)'}</span>
+                              <span className="text-slate-700 bg-slate-50 px-2 py-1 rounded inline-block border border-slate-100 font-mono text-[11px] truncate max-w-xs">{isRedes ? (campana.mensaje || 'Sin mensaje') : (campana.nombre_plantilla || 'No configurada')}</span>
                             </div>
                             <div>
                               <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">AUDIENCIA (FILTROS)</span>
