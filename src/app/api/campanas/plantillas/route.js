@@ -9,9 +9,10 @@ export async function GET(request) {
     const accountId = process.env.META_BUSINESS_ACCOUNT_ID
 
     if (!token || !accountId) {
+      console.warn('⚠️ Aviso: Faltan credenciales META_WHATSAPP_TOKEN o META_BUSINESS_ACCOUNT_ID. Retornando 0 plantillas.');
       return NextResponse.json(
-        { error: 'Faltan credenciales META_WHATSAPP_TOKEN o META_BUSINESS_ACCOUNT_ID configuradas en el servidor.' },
-        { status: 500 }
+        { plantillas: [], error: 'Faltan credenciales META_WHATSAPP_TOKEN o META_BUSINESS_ACCOUNT_ID configuradas en el servidor.' },
+        { status: 200 }
       )
     }
 
@@ -36,10 +37,10 @@ export async function GET(request) {
 
     return NextResponse.json({ plantillas })
   } catch (error) {
-    console.error('❌ Error obteniendo plantillas de WhatsApp Cloud API:', error.response?.data || error.message)
+    console.warn('⚠️ Error de Meta API al obtener plantillas:', error.response?.data || error.message)
     return NextResponse.json(
-      { error: 'No se pudieron recuperar las plantillas de Meta.', detalle: error.response?.data || error.message },
-      { status: 500 }
+      { plantillas: [], error: 'No se pudieron recuperar las plantillas de Meta.', detalle: error.response?.data || error.message },
+      { status: 200 }
     )
   }
 }
