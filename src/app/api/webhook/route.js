@@ -214,16 +214,32 @@ export async function POST(solicitud) {
       console.error("❌ Error insertando mensaje:", errMsg.message);
     }
 
-    await sleep(500);
-    const { data: misMsgs } = await supabase
+    await sleep(1500);
+    const { data: misMsgsMeta } = await supabase
       .from("mensajes")
       .select("id")
       .eq("id_mensaje_meta", mensajeId)
       .order("creado_en", { ascending: true });
 
-    if (misMsgs && misMsgs.length > 1 && nuevoMsg && misMsgs[0].id !== nuevoMsg.id) {
+    if (misMsgsMeta && misMsgsMeta.length > 1 && nuevoMsg && misMsgsMeta[0].id !== nuevoMsg.id) {
       await supabase.from("mensajes").delete().eq("id", nuevoMsg.id);
       return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
+    }
+
+    // DEBOUNCE: Evitar que el bot responda varias veces si el usuario envía 2 mensajes muy rápido.
+    // Si hay un mensaje de usuario MÁS NUEVO en esta misma conversación, abortar la petición vieja.
+    const { data: ultimoMsgUsuario } = await supabase
+      .from("mensajes")
+      .select("id_mensaje_meta")
+      .eq("conversacion_id", convExist.id)
+      .eq("remitente", "usuario")
+      .order("creado_en", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (ultimoMsgUsuario && ultimoMsgUsuario.id_mensaje_meta !== mensajeId) {
+      console.log(`⏭️ [DEBOUNCE] Abortando petición antigua (${mensajeId}), hay un mensaje más nuevo.`);
+      return NextResponse.json({ estado: "reemplazado_por_nuevo" }, { status: 200 });
     }
 
     console.log(`🏆 [WINNER] Ejecución oficial para: ${mensajeId}`);
@@ -246,9 +262,9 @@ export async function POST(solicitud) {
     }
 
     // --- PAUSA DE BOT: SI ESTÁ ASIGNADO A HUMANO, NO CONSULTA A ALEXIA ---
-    if (convExist.asignado_a_humano) {
+    if (convFull && convFull.asignado_a_humano) {
       console.log(
-        `⏸️ [7/10] Chatbot PAUSADO para ${remitenteId} (plataforma: ${plataforma}). Mensaje guardado en Inbox.`,
+        `⏸️ [7/10] Chatbot PAUSADO para ${remitenteId} (asignado a humano). Mensaje guardado en Inbox.`,
       );
       return NextResponse.json({ estado: "pausado_humano" }, { status: 200 });
     }

@@ -61,7 +61,7 @@ export async function PATCH(solicitud) {
     .from('citas')
     .update(datosActualizacion)
     .eq('id', id)
-    .select('*, prospectos(nombre, telefono, canal)')
+    .select('*, prospectos(id, nombre, telefono, canal)')
     .single()
 
   if (error) {
@@ -73,7 +73,7 @@ export async function PATCH(solicitud) {
     const telefono = cita.prospectos.telefono;
     const canal = cita.prospectos.canal || 'whatsapp';
     const nombre = cita.prospectos.nombre || 'amigo(a)';
-    const msj = `¡Hola ${nombre}! 🎉 Te confirmamos que tu cita para el ${cita.fecha} a las ${cita.hora} ha sido agendada con éxito. Te esperamos en nuestras instalaciones. ¡Nos vemos pronto!`;
+    const msj = `¡Hola ${nombre}! 🎉 Te confirmamos que tu cita para el ${cita.fecha} a las ${cita.hora} ha sido agendada con éxito. ¿Tienes alguna duda al respecto antes de tu visita?`;
 
     try {
       if (canal === 'messenger' || canal === 'instagram') {
@@ -97,6 +97,13 @@ export async function PATCH(solicitud) {
         }
       }
       console.log(`✅ Mensaje de confirmación enviado a ${telefono} vía ${canal}`);
+      
+      // Despausar la conversación para que el bot pueda responder si el usuario tiene dudas
+      if (cita.prospectos?.id) {
+        const { error: errUpdate } = await supabase.from('conversaciones').update({ asignado_a_humano: false }).eq('prospecto_id', cita.prospectos.id);
+        if (errUpdate) console.error("❌ Error despausando conversación:", errUpdate.message);
+        else console.log("✅ Conversación despausada exitosamente para", telefono);
+      }
     } catch (e) {
       console.error(`❌ Error enviando mensaje de confirmación a ${telefono}:`, e.response?.data || e.message);
     }

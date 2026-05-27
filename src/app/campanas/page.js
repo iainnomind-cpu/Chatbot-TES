@@ -41,12 +41,20 @@ export default function PaginaCampanas() {
   const camposCampana = [
     { nombre: 'nombre', etiqueta: 'Nombre de la campaña', tipo: 'text', placeholder: 'Ej: Promoción Buen Fin', requerido: true },
     {
+      nombre: 'canal', etiqueta: 'Canal de Envío', tipo: 'select', requerido: true,
+      opciones: [
+        { valor: 'whatsapp', etiqueta: 'WhatsApp' },
+        { valor: 'messenger', etiqueta: 'Messenger' },
+        { valor: 'instagram', etiqueta: 'Instagram' },
+      ]
+    },
+    {
       nombre: 'nombre_plantilla',
-      etiqueta: 'Plantilla de Meta',
+      etiqueta: 'Plantilla de Meta (Solo para WhatsApp)',
       tipo: 'datalist',
       placeholder: 'Escribe el nombre exacto o selecciona una existente...',
       opciones: plantillasSugeridas,
-      requerido: true
+      requerido: false
     },
     { nombre: 'mensaje', etiqueta: 'Notas Internas', tipo: 'textarea', placeholder: 'Notas sobre esta campaña...', requerido: false },
     {
