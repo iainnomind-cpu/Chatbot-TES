@@ -244,6 +244,13 @@ export async function POST(solicitud) {
 
     console.log(`🏆 [WINNER] Ejecución oficial para: ${mensajeId}`);
 
+    // === ACTUALIZAR INBOX EN TIEMPO REAL ===
+    // Actualizar ultimo_mensaje y actualizado_en en la tabla conversaciones para que el sidebar se ordene y muestre el mensaje inmediatamente
+    await supabase.from("conversaciones").update({
+      ultimo_mensaje: texto ? texto.substring(0, 200) : (vieneDeAnuncio ? "[Anuncio]" : "[Mensaje]"),
+      actualizado_en: new Date().toISOString()
+    }).eq("id", convExist.id);
+
     // Actualizar nombre si es necesario
     if (nombrePerfil && nombrePerfil !== "Prospecto") {
       await supabase.from("conversaciones").update({ nombre_contacto: nombrePerfil }).eq("id", convExist.id);
