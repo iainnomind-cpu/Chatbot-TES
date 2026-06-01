@@ -34,6 +34,7 @@ export async function POST(solicitud) {
     let nombrePerfil = "Prospecto";
     let vieneDeAnuncio = false;
     let receptorOriginal = "me";
+    let esEchoDeHumano = false;
 
     if (cuerpo.object === "whatsapp_business_account") {
       const entrada = cuerpo.entry?.[0];
@@ -80,10 +81,16 @@ export async function POST(solicitud) {
           hasAttachments: !!evento.message?.attachments,
           hasPostback: !!evento.postback
         }));
-        if (evento.message && !evento.message.is_echo) {
+        if (evento.message) {
           plataforma = cuerpo.object === "page" ? "messenger" : "instagram";
-          remitenteId = String(evento.sender.id);
-          receptorOriginal = evento.recipient?.id ? String(evento.recipient.id) : "me";
+          if (evento.message.is_echo) {
+            esEchoDeHumano = true;
+            remitenteId = String(evento.recipient?.id);
+            receptorOriginal = String(evento.sender?.id);
+          } else {
+            remitenteId = String(evento.sender?.id);
+            receptorOriginal = evento.recipient?.id ? String(evento.recipient.id) : "me";
+          }
           mensajeId = evento.message.mid;
           texto = evento.message.text || "";
 
@@ -92,9 +99,7 @@ export async function POST(solicitud) {
           } else if (evento.message.attachments) {
             texto = texto || "[Archivo adjunto]";
           }
-          console.log("✅ [2/10] Parseado OK — plataforma:", plataforma, "| remitenteId:", remitenteId, "| texto:", texto.substring(0, 50), "| mid:", mensajeId);
-        } else {
-          console.log("⏭️ [2/10] Mensaje ignorado — is_echo:", evento.message?.is_echo, "| no message:", !evento.message);
+          console.log(`✅ [2/10] Parseado OK (Echo: ${esEchoDeHumano}) — plataforma:`, plataforma, "| remitenteId:", remitenteId, "| texto:", texto.substring(0, 50), "| mid:", mensajeId);
         }
       } else if (entrada?.changes && entrada.changes.length > 0) {
         // Soporte para el botón de "Probar" en Meta for Developers
@@ -200,7 +205,7 @@ export async function POST(solicitud) {
     console.log(`⚔️ [5/10] Insertando mensaje para batalla: ${mensajeId}`);
     const { data: nuevoMsg, error: errMsg } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
-      remitente: "usuario",
+      remitente: esEchoDeHumano ? "humano" : "usuario",
       contenido: texto,
       id_mensaje_meta: mensajeId,
       tipo: "texto"
@@ -248,8 +253,14 @@ export async function POST(solicitud) {
     // Actualizar ultimo_mensaje y actualizado_en en la tabla conversaciones para que el sidebar se ordene y muestre el mensaje inmediatamente
     await supabase.from("conversaciones").update({
       ultimo_mensaje: texto ? texto.substring(0, 200) : (vieneDeAnuncio ? "[Anuncio]" : "[Mensaje]"),
-      actualizado_en: new Date().toISOString()
+      actualizado_en: new Date().toISOString(),
+      ...(esEchoDeHumano ? { asignado_a_humano: true } : {})
     }).eq("id", convExist.id);
+
+    if (esEchoDeHumano) {
+      console.log(`⏸️ [ECHO] Mensaje del humano sincronizado. Deteniendo bot.`);
+      return NextResponse.json({ estado: "echo_sincronizado" }, { status: 200 });
+    }
 
     // Actualizar nombre si es necesario
     if (nombrePerfil && nombrePerfil !== "Prospecto") {
