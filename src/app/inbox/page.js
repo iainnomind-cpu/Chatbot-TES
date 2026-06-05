@@ -266,19 +266,26 @@ export default function PaginaInbox() {
         body: JSON.stringify(payload)
       })
       if (res.ok) {
-        await supabase.from('mensajes').insert({
+        const { error: errIns } = await supabase.from('mensajes').insert({
           conversacion_id: chatActivo.id,
           remitente: 'humano',
           contenido: texto || (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ Imagen'),
           tipo: tipoMsg === 'archivo' ? 'archivo' : (fileUrl ? 'imagen' : 'texto'),
-          url_archivo: fileUrl || null
+          url_archivo: fileUrl || null,
+          id_mensaje_meta: 'manual_' + Date.now()
         })
+        if (errIns) console.error('Error insertando en DB local (cliente):', errIns.message)
+
         await supabase.from('conversaciones').update({ 
           ultimo_mensaje: fileUrl ? (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ [Imagen]') : texto, 
           actualizado_en: new Date().toISOString() 
         }).eq('id', chatActivo.id)
-        cargarMensajes(chatActivo.id)
-        cargarConversaciones()
+        
+        // Recargar para forzar vista
+        setTimeout(() => {
+          cargarMensajes(chatActivo.id)
+          cargarConversaciones()
+        }, 500)
       } else {
         const err = await res.json()
         console.error('Error enviando a Meta:', err)

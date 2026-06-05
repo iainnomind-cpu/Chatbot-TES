@@ -18,13 +18,16 @@ export async function POST(solicitud) {
         
         if (conv) {
           const contenidoMsj = text || (tipo === 'document' ? '📄 Documento' : tipo === 'image' ? '🖼️ Imagen' : 'Plantilla enviada')
-          await supabase.from('mensajes').insert({
+          const { error: errIns } = await supabase.from('mensajes').insert({
             conversacion_id: conv.id,
             remitente: 'humano',
             contenido: contenidoMsj,
             tipo: tipo === 'document' ? 'archivo' : (tipo === 'image' ? 'imagen' : 'texto'),
-            url_archivo: url_archivo || null
+            url_archivo: url_archivo || null,
+            id_mensaje_meta: 'manual_' + Date.now()
           })
+          if (errIns) console.error('Error insertando mensaje manual:', errIns.message)
+          
           await supabase.from('conversaciones').update({ 
             ultimo_mensaje: contenidoMsj,
             actualizado_en: new Date().toISOString()
