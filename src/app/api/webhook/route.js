@@ -918,6 +918,9 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
     // 8. PREPARAR IMAGEN (Solo en recomendación de curso)
     let imgUrl = null;
+    if (respuesta) {
+      respuesta = respuesta.replace(/\\n/g, '\n');
+    }
     try {
       if (
         intencion === "COURSE_RECOMMENDED" &&
@@ -1062,7 +1065,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
             await supabase.from("mensajes").insert({
               conversacion_id: convExist.id,
               remitente: "bot",
-              contenido: "¿Qué prefieres? 👇\n" + opcionesLimpias.map(o => "• " + o.title).join("\n"),
+              contenido: "¿Qué prefieres? 👇\n" + opcionesLimpias.map(o => "• " + o).join("\n"),
               tipo: "texto",
             });
             await sleep(1000);

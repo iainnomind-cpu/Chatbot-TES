@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import axios from 'axios'
+import { supabaseAdmin as supabase } from "@/lib/supabase"
 
 export async function POST(solicitud) {
   try {
@@ -8,6 +9,30 @@ export async function POST(solicitud) {
     
     if (!['whatsapp', 'messenger', 'instagram'].includes(plataforma)) {
       return NextResponse.json({ error: 'Plataforma no soportada' }, { status: 400 })
+    }
+
+    const guardarEnBD = async (resData) => {
+      try {
+        const { data: conv } = await supabase.from('conversaciones')
+          .select('id').eq('id_plataforma', to).eq('plataforma', plataforma).maybeSingle()
+        
+        if (conv) {
+          const contenidoMsj = text || (tipo === 'document' ? '📄 Documento' : tipo === 'image' ? '🖼️ Imagen' : 'Plantilla enviada')
+          await supabase.from('mensajes').insert({
+            conversacion_id: conv.id,
+            remitente: 'humano',
+            contenido: contenidoMsj,
+            tipo: tipo === 'document' ? 'archivo' : (tipo === 'image' ? 'imagen' : 'texto'),
+            url_archivo: url_archivo || null
+          })
+          await supabase.from('conversaciones').update({ 
+            ultimo_mensaje: contenidoMsj,
+            actualizado_en: new Date().toISOString()
+          }).eq('id', conv.id)
+        }
+      } catch (err) {
+        console.error('Error guardando en BD local:', err)
+      }
     }
 
     if (plataforma === 'messenger' || plataforma === 'instagram') {
@@ -21,16 +46,10 @@ export async function POST(solicitud) {
       };
       
       if (tipo === 'image' && url_archivo) {
-        payload.message.attachment = {
-          type: 'image',
-          payload: { url: url_archivo }
-        };
+        payload.message.attachment = { type: 'image', payload: { url: url_archivo } };
         if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
       } else if (tipo === 'document' && url_archivo) {
-        payload.message.attachment = {
-          type: 'file',
-          payload: { url: url_archivo }
-        };
+        payload.message.attachment = { type: 'file', payload: { url: url_archivo } };
         if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
       } else {
         payload.message.text = text;
@@ -38,6 +57,7 @@ export async function POST(solicitud) {
 
       try {
         const res = await axios.post(url, payload, { params: { access_token: pageToken } });
+        await guardarEnBD(res.data);
         return NextResponse.json({ exito: true, metaResponse: res.data }, { status: 200 });
       } catch (error) {
         console.error(`❌ ERROR META API (${plataforma}):`, error.response?.data || error.message);
@@ -73,13 +93,12 @@ export async function POST(solicitud) {
     }
 
     try {
-      // Intento 1
       const res = await axios.post(url, payload, headers)
+      await guardarEnBD(res.data)
       return NextResponse.json({ exito: true, metaResponse: res.data }, { status: 200 })
     } catch (error) {
       console.warn(`⚠️ Falló envío manual inicial a ${to}:`, error.response?.data || error.message)
 
-      // LÓGICA DE MÉXICO: Reintento 521 -> 52 o 52 -> 521
       let toCorregido = null;
       if (to.startsWith('521') && to.length === 13) {
         toCorregido = to.replace('521', '52');
@@ -91,6 +110,7 @@ export async function POST(solicitud) {
         payload.to = toCorregido
         try {
           const resRetry = await axios.post(url, payload, headers)
+          await guardarEnBD(resRetry.data)
           return NextResponse.json({ exito: true, metaResponse: resRetry.data, corregido: true }, { status: 200 })
         } catch (retryError) {
           console.error(`❌ Falló también reintento manual a ${toCorregido}:`, retryError.response?.data || retryError.message)
