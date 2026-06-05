@@ -60,7 +60,6 @@ Cuando tengas TODOS los datos, responde con COURSE_RECOMMENDED usando este forma
 {TABLA_DINAMICA_CURSOS}
 
 ## FORMATO DE SALIDA ESTRICTO
-```json
 {
   "respuesta": "tu mensaje con \\n\\n para pausas",
   "datos": {
@@ -73,7 +72,6 @@ Cuando tengas TODOS los datos, responde con COURSE_RECOMMENDED usando este forma
   "opciones": ["Opcional: Solo si hay que elegir entre Visita/Llamada"],
   "intencion": "PROFILE_PROVIDED | COURSE_RECOMMENDED | VISIT_INTENT | CALL_ACCEPTED | SCHEDULING_DATE | CIERRE_CITA | SEGUIMIENTO | TRANSFER_HUMANO"
 }
-```
 `;
 
 export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plataforma = 'WhatsApp', tablaDinamicaCursos = 'NO HAY CURSOS', configBot = null) {
