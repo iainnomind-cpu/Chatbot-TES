@@ -754,7 +754,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         console.log("📌 Guardando nombre_alumno:", nombreFinal);
         await supabase
           .from("prospectos")
-          .update({ nombre_alumno: nombreFinal })
+          .update({ nombre_alumno: nombreFinal, nombre: nombreFinal })
           .eq("id", prosExist.id);
         
         await supabase
