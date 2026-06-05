@@ -266,22 +266,7 @@ export default function PaginaInbox() {
         body: JSON.stringify(payload)
       })
       if (res.ok) {
-        const { error: errIns } = await supabase.from('mensajes').insert({
-          conversacion_id: chatActivo.id,
-          remitente: 'agente',
-          contenido: texto || (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ Imagen'),
-          tipo: tipoMsg === 'archivo' ? 'archivo' : (fileUrl ? 'imagen' : 'texto'),
-          url_archivo: fileUrl || null,
-          id_mensaje_meta: 'manual_' + Date.now()
-        })
-        if (errIns) console.error('Error insertando en DB local (cliente):', errIns.message)
-
-        await supabase.from('conversaciones').update({ 
-          ultimo_mensaje: fileUrl ? (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ [Imagen]') : texto, 
-          actualizado_en: new Date().toISOString() 
-        }).eq('id', chatActivo.id)
-        
-        // Recargar para forzar vista
+        // Recargar para forzar vista de los mensajes que ya guardó el servidor
         setTimeout(() => {
           cargarMensajes(chatActivo.id)
           cargarConversaciones()
