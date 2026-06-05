@@ -478,11 +478,12 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         .map(
           (c) => `
 🎓 CURSO: ${c.nombre}
-   Descripción: ${c.descripcion || "Sin descripción"}
-   Beneficios (Para usar en tu frase espejo): ${c.beneficios || "Generales"}
+   Frase Espejo: ${c.frase_espejo || "¡Excelente elección!"}
+   Beneficios Condensados: ${c.beneficios || "Generales"}
+   Precio Ancla: ${c.precio_ancla || (c.precio ? "$" + c.precio : "A Consultar")}
+   Regalo (Gancho): ${c.regalo_gancho || "🎁 Clase Muestra"}
    Para Edad/Nivel: ${c.nivel || "Todas"}
    Imagen Referencia: ${c.imagen_url || "null"}
-   Inversión Ancla: ${c.precio ? "$" + c.precio : "A Consultar con Asesor"}
           `,
         )
         .join("\n\n");

@@ -5,8 +5,11 @@ import ModalFormulario from '@/componentes/ModalFormulario'
 
 const camposCurso = [
   { nombre: 'nombre', etiqueta: 'Nombre del curso', tipo: 'text', placeholder: 'Ej: Inglés de Negocios Elite', requerido: true },
+  { nombre: 'frase_espejo', etiqueta: 'Frase Espejo (ManyChat)', tipo: 'textarea', placeholder: 'Ej: ¡Qué gran iniciativa buscar lo mejor... 🌟', requerido: false },
+  { nombre: 'beneficios', etiqueta: 'Beneficios Condensados', tipo: 'textarea', placeholder: 'Lista de beneficios con emojis...', requerido: false },
+  { nombre: 'precio_ancla', etiqueta: 'Precio Ancla (Texto Persuasivo)', tipo: 'text', placeholder: 'Ej: Planes de beca desde $350 MXN semanales.', requerido: false },
+  { nombre: 'regalo_gancho', etiqueta: 'Regalo (Gancho)', tipo: 'text', placeholder: 'Ej: 🎁 Pase para una Clase Muestra', requerido: false },
   { nombre: 'descripcion', etiqueta: 'Descripción', tipo: 'textarea', placeholder: 'Describe el contenido del curso...', requerido: false },
-  { nombre: 'beneficios', etiqueta: 'Beneficios', tipo: 'textarea', placeholder: 'Lista los beneficios principales...', requerido: false },
   { nombre: 'duracion', etiqueta: 'Duración', tipo: 'text', placeholder: 'Ej: 12 Semanas', requerido: false },
   {
     nombre: 'nivel', etiqueta: 'Nivel', tipo: 'select', requerido: false,
@@ -20,7 +23,7 @@ const camposCurso = [
       { valor: 'Abierto', etiqueta: 'Nivel Abierto' },
     ]
   },
-  { nombre: 'precio', etiqueta: 'Precio (MXN)', tipo: 'number', placeholder: 'Ej: 599', requerido: false },
+  { nombre: 'precio', etiqueta: 'Precio Numérico (Opcional)', tipo: 'number', placeholder: 'Ej: 599', requerido: false },
   { nombre: 'capacidad', etiqueta: 'Capacidad (alumnos)', tipo: 'number', placeholder: 'Ej: 10', requerido: false },
   { nombre: 'edad_minima', etiqueta: 'Edad Mínima', tipo: 'number', placeholder: 'Ej: 6', requerido: false },
   { nombre: 'edad_maxima', etiqueta: 'Edad Máxima', tipo: 'number', placeholder: 'Ej: 13', requerido: false },

@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS cursos (
   nombre text NOT NULL,
   descripcion text,
   beneficios text,
+  frase_espejo text, -- Nueva columna ManyChat
+  precio_ancla text, -- Nueva columna ManyChat
+  regalo_gancho text, -- Nueva columna ManyChat
   duracion text,
   nivel text,
   precio numeric,
