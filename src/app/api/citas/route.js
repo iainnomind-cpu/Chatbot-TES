@@ -104,11 +104,29 @@ export async function PATCH(solicitud) {
       }
       console.log(`✅ Mensaje de confirmación enviado a ${telefono} vía ${canal}`);
       
-      // Despausar la conversación para que el bot pueda responder si el usuario tiene dudas
+      // Despausar la conversación y guardar mensaje en historial
       if (cita.prospectos?.id) {
-        const { error: errUpdate } = await supabase.from('conversaciones').update({ asignado_a_humano: false }).eq('prospecto_id', cita.prospectos.id);
-        if (errUpdate) console.error("❌ Error despausando conversación:", errUpdate.message);
-        else console.log("✅ Conversación despausada exitosamente para", telefono);
+        const { data: conversacion, error: errUpdate } = await supabase
+          .from('conversaciones')
+          .update({ asignado_a_humano: false })
+          .eq('prospecto_id', cita.prospectos.id)
+          .select('id')
+          .single();
+
+        if (errUpdate) {
+          console.error("❌ Error despausando conversación:", errUpdate.message);
+        } else if (conversacion?.id) {
+          console.log("✅ Conversación despausada exitosamente para", telefono);
+          
+          await supabase.from('mensajes').insert({
+            conversacion_id: conversacion.id,
+            remitente: 'agente',
+            tipo: 'texto',
+            contenido: msj,
+            creado_en: new Date().toISOString()
+          });
+          console.log("✅ Mensaje de confirmación guardado en historial");
+        }
       }
     } catch (e) {
       console.error(`❌ Error enviando mensaje de confirmación a ${telefono}:`, e.response?.data || e.message);
