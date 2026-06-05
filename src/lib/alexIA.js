@@ -47,18 +47,16 @@ Cuando tengas TODOS los datos, responde con COURSE_RECOMMENDED usando este forma
 - **SCHEDULING_DATE:** (Cuando el usuario te da su nombre después de elegir visita/llamada) -> ¡IMPORTANTE! Extrae el nombre que el usuario acaba de escribir y guárdalo obligatoriamente en el campo "nombre_alumno" del JSON. Luego Responde: "¡Gracias! ¿Qué día y a qué hora te gustaría agendar tu cita? 🗓️". REGLA CRÍTICA: Si el usuario responde SOLO con un día (ej: "el viernes"), pide ÚNICAMENTE la hora que falta ("¡Perfecto! ¿A qué hora te queda mejor? ⏰") y usa intención SCHEDULING_DATE. Si responde SOLO con una hora (ej: "a las 3pm"), pide ÚNICAMENTE el día que falta. NUNCA repitas la pregunta de un dato que ya te dieron.
 - **CIERRE_CITA:** (SOLO cuando ya tienes Nombre + Día + Hora exactos, los 3 datos completos) -> ¡IMPORTANTE! Mantén el "nombre_alumno" en el JSON. Responde confirmando la cita con el texto EXACTO original: "¡Perfecto! Un asesor de nuestro equipo confirmará la disponibilidad en la agenda para el [DÍA] a las [HORA] y se pondrá en contacto contigo a la brevedad por este medio para finalizar los detalles.\n\n¡Estamos muy emocionados de conocerte! ✨"
 
-## TABLA DE ESCENARIOS (Detalle Total)
-- **NIÑOS (6-9)** -> CHILDREN.jpg | "¡Qué gran iniciativa para tu peque! 🌟" | • 🗣️ Mucho speaking • 👥 Grupos reducidos • 🎲 Aprenden divirtiéndose • 🎓 Cubre hasta bachillerato. | Regalo: Pase Clase Muestra. | Precio: $350 sem.
-- **ADOLESCENTES (10-13)** -> PRE-TEENS.jpeg | "Entiendo que buscas herramientas que le faciliten la escuela y el futuro 🚀" | • Confianza y fluidez • Clases dinámicas • Profesores expertos • Exentan inglés en secundaria. | Regalo: Pase Clase Muestra. | Precio: $350 sem.
-- **ADULTOS (14+, Fijo)** -> YOUNG_ADULTS.jpeg | "Se nota que estás comprometido/a con tu crecimiento profesional 💼" | • Inglés práctico para escuela/trabajo • Club de speaking • Tutorías gratis • Certificación Cambridge. | Regalo: Diagnóstico + Clase Prueba. | Precio: $450-$550 sem.
-- **ADULTOS (16+, Flexible)** -> MY_TIME.jpg | "Comprendo perfectamente que necesitas que el inglés se adapte a tu ritmo 🕒" | • 100% Flexible • Clases personalizadas • Plataforma 24/7 • Avanza a tu propio ritmo. | Regalo: Demo de Plataforma. | Precio: Plan Premium a medida.
+## TABLA DE ESCENARIOS (Cursos Disponibles desde Base de Datos)
+{TABLA_DINAMICA_CURSOS}
 
 ## FORMATO DE SALIDA ESTRICTO
 {
   "respuesta": "tu mensaje con \\n\\n para pausas",
   "datos": {
     "nombre_alumno": "¡CRÍTICO! Extrae y guarda aquí el nombre del alumno en cuanto lo mencione.", "edad": "...", "nivel": "...", "horario": "...",
-    "curso_interes": "...", "lead_score": "...", "imagen": "Nombre_Imagen.jpg",
+    "curso_interes": "...", "lead_score": "...", 
+    "imagen": "Copia EXACTAMENTE el valor de 'Imagen Referencia' del curso elegido de la tabla de arriba. NUNCA inventes nombres de imágenes.",
     "fecha_cita": "YYYY-MM-DD", "hora_cita": "HH:MM",
     "escalation_reason": "Opcional, si hay que transferir a humano"
   },
@@ -85,6 +83,7 @@ export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plat
     const promptFinal = MEGA_SYSTEM_PROMPT
       .replace('{Nombre}', nombreFormateado)
       .replace('{CONTEXTO_CRM}', mensajeSistemaCrm + configStr)
+      .replace('{TABLA_DINAMICA_CURSOS}', tablaDinamicaCursos)
       .replace('{FECHA_ACTUAL}', `${diaActualStr}, ${fechaActualStr} a las ${horaActualStr}`);
 
     const { text } = await generateText({

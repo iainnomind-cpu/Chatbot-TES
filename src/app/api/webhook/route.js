@@ -894,12 +894,14 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     if (datos && datos.imagen && datos.imagen !== "null") {
       if (datos.imagen.startsWith("http")) {
         imagenUrl = datos.imagen;
+      } else if (datos.imagen.match(/^\d+_[a-z0-9]+\.(jpg|jpeg|png|webp)$/i)) {
+        // Es una imagen subida a Supabase (ej: 1777318424424_u3oqz.jpeg) pero guardada sin URL completa
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://hngcvuoyfkkrqdazbivv.supabase.co"; // fallback seguro si es necesario
+        imagenUrl = `${supabaseUrl}/storage/v1/object/public/recursos/${datos.imagen}`;
       } else {
-        // Dominio de producción - Meta necesita una URL pública accesible
-        const origin =
-          process.env.NEXT_PUBLIC_BASE_URL ||
-          "https://erp-total-english.vercel.app";
-        imagenUrl = `${origin}/cursos/${datos.imagen}`;
+        // Dominio de producción - Imágenes estáticas (ej: CHILDREN.jpg)
+        const origin = process.env.NEXT_PUBLIC_BASE_URL || "https://erp-total-english.vercel.app";
+        imagenUrl = `${origin}/cursos/${datos.imagen.replace(/^\//, '')}`;
       }
       console.log("🖼️ Imagen URL construida:", imagenUrl);
     }
