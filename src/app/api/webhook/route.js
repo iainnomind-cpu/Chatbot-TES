@@ -918,8 +918,9 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
     // 8. PREPARAR IMAGEN (Solo en recomendación de curso)
     let imgUrl = null;
-    if (respuesta) {
-      respuesta = respuesta.replace(/\\n/g, '\n');
+    let respuestaLimpia = respuesta;
+    if (respuestaLimpia) {
+      respuestaLimpia = respuestaLimpia.replace(/\\n/g, '\n');
     }
     try {
       if (
@@ -941,7 +942,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
       if (imgUrl) {
         console.log("🖼️ [8/10] FLUJO CON IMAGEN — URL:", imgUrl);
         // LÓGICA CON IMAGEN: Enviar recomendación como pie de foto (caption)
-        const partesRespuesta = respuesta
+        const partesRespuesta = respuestaLimpia
           .split("\n\n")
           .filter((p) => p.trim() !== "");
 
@@ -968,7 +969,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           textoIntro = partesRespuesta[0];
           textoCaption = partesRespuesta.slice(1).join("\n\n");
         } else {
-          textoCaption = respuesta;
+          textoCaption = respuestaLimpia;
         }
 
         // Enviar "Un momento..." como texto separado si existe
@@ -1076,7 +1077,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         }
       } else {
         // LÓGICA DE ENVÍO (Basada en la petición del usuario: separar lugar de preguntas)
-        const partesRespuesta = respuesta
+        const partesRespuesta = respuestaLimpia
           .split("\n\n")
           .filter((p) => p.trim() !== "");
         
@@ -1121,7 +1122,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     if (imgUrl) {
       await supabase
         .from("conversaciones")
-        .update({ ultimo_mensaje: respuesta.substring(0, 200) })
+        .update({ ultimo_mensaje: respuestaLimpia.substring(0, 200) })
         .eq("id", convExist.id);
     }
     return NextResponse.json({ estado: "procesado" }, { status: 200 });
