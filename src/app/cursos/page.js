@@ -5,7 +5,7 @@ import ModalFormulario from '@/componentes/ModalFormulario'
 
 const camposCurso = [
   { nombre: 'nombre', etiqueta: 'Nombre del curso', tipo: 'text', placeholder: 'Ej: Inglés de Negocios Elite', requerido: true },
-  { nombre: 'frase_espejo', etiqueta: 'Frase Espejo (ManyChat)', tipo: 'textarea', placeholder: 'Ej: ¡Qué gran iniciativa buscar lo mejor... 🌟', requerido: false },
+  { nombre: 'frase_espejo', etiqueta: 'Frase Espejo (IA)', tipo: 'textarea', placeholder: 'Ej: ¡Qué gran iniciativa buscar lo mejor... 🌟', requerido: false },
   { nombre: 'beneficios', etiqueta: 'Beneficios Condensados', tipo: 'textarea', placeholder: 'Lista de beneficios con emojis...', requerido: false },
   { nombre: 'precio_ancla', etiqueta: 'Precio Ancla (Texto Persuasivo)', tipo: 'text', placeholder: 'Ej: Planes de beca desde $350 MXN semanales.', requerido: false },
   { nombre: 'regalo_gancho', etiqueta: 'Regalo (Gancho)', tipo: 'text', placeholder: 'Ej: 🎁 Pase para una Clase Muestra', requerido: false },
@@ -336,7 +336,7 @@ export default function PaginaCursos() {
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-blue-500">robot_2</span> Configuración ManyChat / IA
+                    <span className="material-symbols-outlined text-blue-500">robot_2</span> Configuración IA
                   </h3>
                   <div className="space-y-3 pl-4 border-l-2 border-blue-100">
                     <div>
