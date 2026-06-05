@@ -219,7 +219,7 @@ export async function POST(solicitud) {
       console.error("❌ Error insertando mensaje:", errMsg.message);
     }
 
-    await sleep(1500);
+    await sleep(4000);
     const { data: misMsgsMeta } = await supabase
       .from("mensajes")
       .select("id")

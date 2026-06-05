@@ -14,7 +14,7 @@ INSTRUCCIÓN SÚPER CRÍTICA: TU RESPUESTA DEBE SER ÚNICAMENTE UN OBJETO JSON V
 
 ## 1. MENSAJE DE BIENVENIDA (Iniciador)
 Si es el primer mensaje o no sabemos nada, envía SOLO esto:
-"🙌 ¡Hola! {Nombre}\n\nSoy Alex, de Total English School. Para darte la mejor recomendación, solo te haré unas preguntas rápidas. ✨\n\n¿Para quién buscas el curso? ¿Es para ti o para alguien más?"
+"🙌 ¡Hola!{Nombre}\n\nSoy Alex, de Total English School. Para darte la mejor recomendación, solo te haré unas preguntas rápidas. ✨\n\n¿Para quién buscas el curso? ¿Es para ti o para alguien más?"
 
 ## 2. LÓGICA DE PERFILAMIENTO (Estricto Una por Una)
 Debes obtener estos datos UNA PREGUNTA A LA VEZ. NO asumas respuestas.
@@ -24,6 +24,17 @@ Debes obtener estos datos UNA PREGUNTA A LA VEZ. NO asumas respuestas.
 4. **CRÍTICO:** Si tiene 15 años o más, ES OBLIGATORIO PREGUNTAR: "¿Buscas Horarios fijos o Flexibles? ⏰". No te saltes esta pregunta bajo ninguna circunstancia.
 
 NO des ninguna recomendación ni precio hasta tener los datos completos.
+
+## 2.1 PREGUNTAS FUERA DE FLUJO (PRECIOS/HORARIOS ADELANTADOS)
+Si el usuario pregunta por PRECIOS, HORARIOS, MODALIDADES o CÓMO ES EL CURSO **ANTES** de que termines de hacerle las 4 preguntas de perfilamiento, NO LE DES LA INFORMACIÓN TODAVÍA. 
+Responde redirigiéndolo amablemente a terminar el perfilamiento:
+"Para poder darte los precios exactos y la información que mejor se adapte a lo que buscas, primero ayúdame a contestar esta pregunta: [Repite la pregunta de perfilamiento en la que te quedaste]"
+
+## 2.2 ESCALAMIENTO A HUMANO (TRANSFER_HUMANO)
+Si el usuario pregunta por EMPLEO, pide explícitamente HABLAR CON UN ASESOR/HUMANO, o hace preguntas externas que NO están relacionadas con los cursos y no puedes responder:
+1. Responde: "Comprendo. Un asesor de nuestro equipo se pondrá en contacto contigo lo más pronto posible para atenderte personalmente. 👩‍💻"
+2. Usa la intención: TRANSFER_HUMANO
+3. Llena el campo "escalation_reason" en el JSON con el motivo breve.
 
 ## 3. FLUJO DE RECOMENDACIÓN (Estructura de Venta ManyChat)
 Cuando tengas TODOS los datos, responde con COURSE_RECOMMENDED usando este formato exacto:
@@ -67,12 +78,14 @@ export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plat
     const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const diaActualStr = dias[hoy.getDay()];
 
-    const configStr = configBot ? \`\\n## REGLAS DE AGENDAMIENTO (CONFIGURACIÓN):\\n- Días operativos: \${configBot.agenda_dias}\\n- Horario de atención: \${configBot.agenda_inicio} a \${configBot.agenda_fin}\\n- Tiempo de brecha mínimo entre citas: \${configBot.agenda_brecha} minutos.\\nRespeta estrictamente estos horarios al agendar citas.\` : "";
+    const configStr = configBot ? `\n## REGLAS DE AGENDAMIENTO (CONFIGURACIÓN):\n- Días operativos: ${configBot.agenda_dias}\n- Horario de atención: ${configBot.agenda_inicio} a ${configBot.agenda_fin}\n- Tiempo de brecha mínimo entre citas: ${configBot.agenda_brecha} minutos.\nRespeta estrictamente estos horarios al agendar citas.` : "";
+
+    const nombreFormateado = (nombreUsuario && nombreUsuario !== 'undefined' && nombreUsuario !== 'Prospecto') ? ` ${nombreUsuario}` : '';
 
     const promptFinal = MEGA_SYSTEM_PROMPT
-      .replace('{Nombre}', nombreUsuario && nombreUsuario !== 'undefined' ? nombreUsuario : 'amigo(a)')
+      .replace('{Nombre}', nombreFormateado)
       .replace('{CONTEXTO_CRM}', mensajeSistemaCrm + configStr)
-      .replace('{FECHA_ACTUAL}', \`\${diaActualStr}, \${fechaActualStr} a las \${horaActualStr}\`);
+      .replace('{FECHA_ACTUAL}', `${diaActualStr}, ${fechaActualStr} a las ${horaActualStr}`);
 
     const { text } = await generateText({
       model: openai('gpt-4o'),

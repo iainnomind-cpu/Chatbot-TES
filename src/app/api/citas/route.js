@@ -73,7 +73,13 @@ export async function PATCH(solicitud) {
     const telefono = cita.prospectos.telefono;
     const canal = cita.prospectos.canal || 'whatsapp';
     const nombre = cita.prospectos.nombre || 'amigo(a)';
-    const msj = `¡Hola ${nombre}! 🎉 Te confirmamos que tu cita para el ${cita.fecha} a las ${cita.hora} ha sido agendada con éxito. ¿Tienes alguna duda al respecto antes de tu visita?`;
+    // Determinar si es visita o llamada
+    // Como el nivel/curso u opciones guardadas pueden indicar llamada, buscamos la palabra clave en el canal o prospecto, o lo dejamos genérico.
+    // También podríamos revisar el historial, pero para hacerlo robusto:
+    const esLlamada = cita.nivel?.toLowerCase().includes('llamada') || cita.curso?.toLowerCase().includes('llamada') || false;
+    const tipoAtencion = esLlamada ? 'llamada' : 'visita';
+    
+    const msj = `¡Hola ${nombre}! 🎉 Te confirmamos que tu cita para el ${cita.fecha} a las ${cita.hora} ha sido agendada con éxito. ¿Tienes alguna duda al respecto antes de tu ${tipoAtencion}?`;
 
     try {
       if (canal === 'messenger' || canal === 'instagram') {
