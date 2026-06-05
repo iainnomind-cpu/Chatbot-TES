@@ -46,6 +46,7 @@ export default function PaginaCursos() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [filtroActivo, setFiltroActivo] = useState('Todos')
   const [cursoEditando, setCursoEditando] = useState(null)
+  const [cursoViendo, setCursoViendo] = useState(null)
 
   const cargarCursos = async () => {
     setCargando(true)
@@ -128,9 +129,17 @@ export default function PaginaCursos() {
     setModalAbierto(true)
   }
 
+  const abrirDetalles = (curso) => {
+    setCursoViendo(curso)
+  }
+
   const cerrarModal = () => {
     setModalAbierto(false)
     setCursoEditando(null)
+  }
+
+  const cerrarModalDetalles = () => {
+    setCursoViendo(null)
   }
 
   const datosMostrar = cursos;
@@ -235,7 +244,7 @@ export default function PaginaCursos() {
                 <span className="text-xl font-black text-blue-900">
                   {curso.precio ? `$${curso.precio} MXN` : 'Consultar'}
                 </span>
-                <button onClick={() => abrirEditar(curso)} className="text-[#00236f] text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all">
+                <button onClick={() => abrirDetalles(curso)} className="text-[#00236f] text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all">
                   Detalles <span className="material-symbols-outlined text-sm">arrow_forward</span>
                 </button>
               </div>
@@ -255,25 +264,129 @@ export default function PaginaCursos() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modales */}
       <ModalFormulario
         abierto={modalAbierto}
         alCerrar={cerrarModal}
         titulo={cursoEditando ? 'Editar Curso' : 'Nuevo Curso'}
         campos={camposCurso}
+        datosIniciales={cursoEditando}
         alEnviar={cursoEditando ? editarCurso : crearCurso}
-        textoBoton={cursoEditando ? 'Guardar Cambios' : 'Crear Curso'}
-        datosIniciales={cursoEditando ? {
-          nombre: cursoEditando.nombre,
-          descripcion: cursoEditando.descripcion,
-          beneficios: cursoEditando.beneficios,
-          duracion: cursoEditando.duracion,
-          nivel: cursoEditando.nivel,
-          precio: cursoEditando.precio,
-          capacidad: cursoEditando.capacidad,
-          imagen_url: cursoEditando.imagen_url,
-        } : null}
       />
+
+      {/* Modal de Vista Previa */}
+      {cursoViendo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={cerrarModalDetalles}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-[fadeIn_0.2s_ease-out]">
+            <div className="relative h-64 bg-slate-200">
+              {cursoViendo.imagen_url ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  alt={cursoViendo.nombre}
+                  className="w-full h-full object-cover"
+                  src={cursoViendo.imagen_url.startsWith('http') || cursoViendo.imagen_url.startsWith('/cursos/') ? cursoViendo.imagen_url : '/cursos/' + cursoViendo.imagen_url.replace(/^\//, '')}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-5xl text-blue-400">school</span>
+                </div>
+              )}
+              <button
+                onClick={cerrarModalDetalles}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+              {cursoViendo.nivel && (
+                <div className="absolute bottom-4 left-4">
+                  <span className={`${coloresNivel[cursoViendo.nivel] || 'bg-blue-900/90'} text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full backdrop-blur-sm`}>
+                    {cursoViendo.nivel}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-8">
+              <h2 className="text-3xl font-bold text-blue-900 mb-4">{cursoViendo.nombre}</h2>
+              
+              <div className="grid grid-cols-2 gap-6 mb-8 bg-slate-50 p-6 rounded-2xl">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Inversión (CRM)</h4>
+                  <p className="font-semibold text-slate-800">{cursoViendo.precio ? `$${cursoViendo.precio} MXN` : 'Consultar'}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Duración</h4>
+                  <p className="font-semibold text-slate-800">{cursoViendo.duracion || 'N/A'}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Capacidad</h4>
+                  <p className="font-semibold text-slate-800">{cursoViendo.capacidad ? `${cursoViendo.capacidad} Alumnos` : 'N/A'}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Edades</h4>
+                  <p className="font-semibold text-slate-800">
+                    {cursoViendo.edad_minima || cursoViendo.edad_maxima 
+                      ? `${cursoViendo.edad_minima || 0} - ${cursoViendo.edad_maxima || '99'} años`
+                      : 'Todas'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-blue-500">robot_2</span> Configuración ManyChat / IA
+                  </h3>
+                  <div className="space-y-3 pl-4 border-l-2 border-blue-100">
+                    <div>
+                      <p className="text-xs font-bold text-blue-500 uppercase">Frase Espejo</p>
+                      <p className="text-slate-700 italic">"{cursoViendo.frase_espejo || 'N/A'}"</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-blue-500 uppercase">Beneficios Condensados</p>
+                      <p className="text-slate-700 whitespace-pre-line">{cursoViendo.beneficios || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-blue-500 uppercase">Precio Ancla (Persuasivo)</p>
+                      <p className="text-slate-700">{cursoViendo.precio_ancla || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-blue-500 uppercase">Regalo / Gancho</p>
+                      <p className="text-slate-700 font-medium">{cursoViendo.regalo_gancho || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {cursoViendo.descripcion && (
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">Descripción Interna</h3>
+                    <p className="text-slate-600 leading-relaxed whitespace-pre-line">{cursoViendo.descripcion}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
+              <button
+                onClick={cerrarModalDetalles}
+                className="px-6 py-2.5 bg-white text-slate-700 font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={() => {
+                  cerrarModalDetalles();
+                  abrirEditar(cursoViendo);
+                }}
+                className="px-6 py-2.5 bg-gradient-to-r from-[#00236f] to-[#1e3a8a] text-white font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-blue-900/20 flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">edit</span> Editar Curso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -59,9 +59,25 @@ export async function PUT(solicitud) {
     return NextResponse.json({ error: 'Se requiere el ID del curso' }, { status: 400 })
   }
 
+  const datosLimpio = {
+    nombre: datosActualizacion.nombre,
+    descripcion: datosActualizacion.descripcion || null,
+    beneficios: datosActualizacion.beneficios || null,
+    frase_espejo: datosActualizacion.frase_espejo || null,
+    precio_ancla: datosActualizacion.precio_ancla || null,
+    regalo_gancho: datosActualizacion.regalo_gancho || null,
+    duracion: datosActualizacion.duracion || null,
+    nivel: datosActualizacion.nivel || null,
+    imagen_url: datosActualizacion.imagen_url || null,
+    precio: datosActualizacion.precio ? Number(datosActualizacion.precio) : null,
+    capacidad: datosActualizacion.capacidad ? Number(datosActualizacion.capacidad) : null,
+    edad_minima: datosActualizacion.edad_minima ? Number(datosActualizacion.edad_minima) : null,
+    edad_maxima: datosActualizacion.edad_maxima ? Number(datosActualizacion.edad_maxima) : null,
+  }
+
   const { data: curso, error } = await supabase
     .from('cursos')
-    .update(datosActualizacion)
+    .update(datosLimpio)
     .eq('id', id)
     .select()
     .single()
