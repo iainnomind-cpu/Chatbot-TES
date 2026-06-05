@@ -6,6 +6,8 @@ import { escalarAHumano } from "@/lib/prospectoSync";
 import { notificarEscalamientoAdmin, notificarCitaAdmin } from "@/lib/mailer";
 import axios from "axios";
 
+export const maxDuration = 60;
+
 export async function GET(solicitud) {
   const { searchParams } = new URL(solicitud.url);
   const modo = searchParams.get("hub.mode");
@@ -219,7 +221,7 @@ export async function POST(solicitud) {
       console.error("❌ Error insertando mensaje:", errMsg.message);
     }
 
-    await sleep(4000);
+    await sleep(2000);
     const { data: misMsgsMeta } = await supabase
       .from("mensajes")
       .select("id")
