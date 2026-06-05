@@ -20,7 +20,7 @@ export async function POST(solicitud) {
           const contenidoMsj = text || (tipo === 'document' ? '📄 Documento' : tipo === 'image' ? '🖼️ Imagen' : 'Plantilla enviada')
           const { error: errIns } = await supabase.from('mensajes').insert({
             conversacion_id: conv.id,
-            remitente: 'humano',
+            remitente: 'agente',
             contenido: contenidoMsj,
             tipo: tipo === 'document' ? 'archivo' : (tipo === 'image' ? 'imagen' : 'texto'),
             url_archivo: url_archivo || null,

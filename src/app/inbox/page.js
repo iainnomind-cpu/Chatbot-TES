@@ -268,7 +268,7 @@ export default function PaginaInbox() {
       if (res.ok) {
         const { error: errIns } = await supabase.from('mensajes').insert({
           conversacion_id: chatActivo.id,
-          remitente: 'humano',
+          remitente: 'agente',
           contenido: texto || (tipoMsg === 'archivo' ? '📄 Documento' : '🖼️ Imagen'),
           tipo: tipoMsg === 'archivo' ? 'archivo' : (fileUrl ? 'imagen' : 'texto'),
           url_archivo: fileUrl || null,
@@ -321,7 +321,7 @@ export default function PaginaInbox() {
       escalation_category: null
     };
     await supabase.from('conversaciones').update(updates).eq('id', chatActivo.id);
-    setChatActivo(prev => ({ ...prev, ...updates }));
+    setChatActivo(prev => ({ ...prev, ...updates }))
     setToggling(false);
   }
 
@@ -421,7 +421,7 @@ export default function PaginaInbox() {
       // 5. Guardar el mensaje en la base de datos
       await supabase.from('mensajes').insert({
         conversacion_id: nuevaC.id,
-        remitente: 'humano',
+        remitente: 'agente',
         contenido: mensajeInicial,
         tipo: 'texto'
       })
@@ -881,19 +881,17 @@ export default function PaginaInbox() {
 
                 <button type="button" onClick={async () => {
                   if (!chatActivo) return
-                  const ubicacion = '🏫 Total English School\n📍 Av. Constitución 1599, Jardines Vista Hermosa IV, Colima\n🗺️ https://www.google.com/maps/search/?api=1&query=Total+English+School+Colima\n🕒 Lun-Vie 2-9pm | Sáb 8am-2pm'
                   if (!confirm('¿Enviar ubicación al cliente?')) return
                   try {
-                    const res = await fetch('/api/enviar-mensaje', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ to: chatActivo.id_plataforma, text: ubicacion, plataforma: chatActivo.plataforma || 'whatsapp' })
-                    })
-                    if (res.ok) {
-                      await supabase.from('mensajes').insert({ conversacion_id: chatActivo.id, remitente: 'humano', contenido: ubicacion, tipo: 'texto' })
-                      await supabase.from('conversaciones').update({ ultimo_mensaje: '📍 Ubicación enviada', actualizado_en: new Date().toISOString() }).eq('id', chatActivo.id)
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(async (pos) => {
+                        const ubicacion = `📍 Ubicación: https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`
+                        setNuevoMensaje(ubicacion)
+                      })
+                    } else {
+                      await supabase.from('mensajes').insert({ conversacion_id: chatActivo.id, remitente: 'agente', contenido: '📍 Ubicación no disponible', tipo: 'texto' })
+                      await supabase.from('conversaciones').update({ ultimo_mensaje: '📍 Ubicación no disponible', actualizado_en: new Date().toISOString() }).eq('id', chatActivo.id)
                       cargarMensajes(chatActivo.id)
-                      alert('📍 Ubicación enviada correctamente')
                     }
                   } catch (err) { console.error(err); alert('Error al enviar ubicación') }
                   setMostrarClipMenu(false)
