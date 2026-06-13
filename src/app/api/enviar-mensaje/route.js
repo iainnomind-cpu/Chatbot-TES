@@ -17,12 +17,12 @@ export async function POST(solicitud) {
           .select('id').eq('id_plataforma', to).eq('plataforma', plataforma).maybeSingle()
         
         if (conv) {
-          const contenidoMsj = text || (tipo === 'document' ? '📄 Documento' : tipo === 'image' ? '🖼️ Imagen' : 'Plantilla enviada')
+          const contenidoMsj = text || (tipo === 'document' ? '📄 Documento' : tipo === 'video' ? '🎥 Video' : tipo === 'image' ? '🖼️ Imagen' : 'Plantilla enviada')
           const { error: errIns } = await supabase.from('mensajes').insert({
             conversacion_id: conv.id,
             remitente: 'agente',
             contenido: contenidoMsj,
-            tipo: tipo === 'document' ? 'archivo' : (tipo === 'image' ? 'imagen' : 'texto'),
+            tipo: tipo === 'document' ? 'archivo' : (tipo === 'video' ? 'video' : (tipo === 'image' ? 'imagen' : 'texto')),
             url_archivo: url_archivo || null,
             id_mensaje_meta: 'manual_' + Date.now()
           })
@@ -50,6 +50,9 @@ export async function POST(solicitud) {
       
       if (tipo === 'image' && url_archivo) {
         payload.message.attachment = { type: 'image', payload: { url: url_archivo } };
+        if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
+      } else if (tipo === 'video' && url_archivo) {
+        payload.message.attachment = { type: 'video', payload: { url: url_archivo } };
         if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
       } else if (tipo === 'document' && url_archivo) {
         payload.message.attachment = { type: 'file', payload: { url: url_archivo } };
@@ -83,6 +86,9 @@ export async function POST(solicitud) {
     } else if (tipo === 'image' && url_archivo) {
       payload.type = 'image'
       payload.image = { link: url_archivo, caption: text }
+    } else if (tipo === 'video' && url_archivo) {
+      payload.type = 'video'
+      payload.video = { link: url_archivo, caption: text }
     } else if (tipo === 'document' && url_archivo) {
       payload.type = 'document'
       payload.document = { link: url_archivo, caption: text, filename: 'documento_total_english' }

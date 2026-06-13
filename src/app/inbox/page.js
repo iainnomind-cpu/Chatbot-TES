@@ -227,29 +227,48 @@ export default function PaginaInbox() {
     const file = e.target.files?.[0]
     if (!file || !chatActivo) return
 
+    // Límite de 50 MB en el cliente
+    const MAX_MB = 50
+    if (file.size > MAX_MB * 1024 * 1024) {
+      alert(`El archivo es demasiado grande. El máximo permitido es ${MAX_MB} MB.`)
+      return
+    }
+
     try {
       setCargando(true)
 
-      // Usar la API del servidor para subir con supabaseAdmin (bypasa RLS)
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const res = await fetch('/api/upload/media', {
+      // PASO 1: Pedir una URL firmada al servidor (el archivo NO pasa por Vercel)
+      const signedRes = await fetch('/api/upload/signed-url', {
         method: 'POST',
         headers: {
-          // Enviar el token JWT para que la API pueda verificar autenticación
+          'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: formData,
+        body: JSON.stringify({ fileName: file.name, contentType: file.type }),
       })
 
-      if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Error al subir el archivo')
+      if (!signedRes.ok) {
+        const errData = await signedRes.json()
+        throw new Error(errData.error || 'Error obteniendo URL de subida')
       }
 
-      const { url: publicUrl } = await res.json()
-      await enviarMensaje(null, publicUrl, tipo === 'documento' ? 'archivo' : 'imagen')
+      const { signedUrl, publicUrl } = await signedRes.json()
+
+      // PASO 2: Subir el archivo DIRECTAMENTE a Supabase desde el browser
+      // (sin pasar por Vercel — sin límite de tamaño de Vercel)
+      const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error('Error al subir el archivo a Supabase')
+      }
+
+      // PASO 3: Enviar el mensaje con la URL pública
+      const tipoMensaje = file.type.startsWith('video/') ? 'video' : (tipo === 'documento' ? 'archivo' : 'imagen')
+      await enviarMensaje(null, publicUrl, tipoMensaje)
       setMostrarClipMenu(false)
     } catch (err) {
       console.error('Error subiendo:', err)
@@ -268,7 +287,9 @@ export default function PaginaInbox() {
     try {
       const payload = { to: chatActivo.id_plataforma, text: texto, plataforma: chatActivo.plataforma || 'whatsapp' }
       if (fileUrl) {
-        payload.tipo = tipoMsg === 'archivo' ? 'document' : 'image'
+        if (tipoMsg === 'archivo') payload.tipo = 'document'
+        else if (tipoMsg === 'video') payload.tipo = 'video'
+        else payload.tipo = 'image'
         payload.url_archivo = fileUrl
       }
       const res = await fetch('/api/enviar-mensaje', {
