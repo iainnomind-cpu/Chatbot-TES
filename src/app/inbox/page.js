@@ -229,20 +229,31 @@ export default function PaginaInbox() {
 
     try {
       setCargando(true)
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random()}.${fileExt}`
-      const filePath = `inbox/${fileName}`
 
-      const { data, error } = await supabase.storage.from('chat-media').upload(filePath, file)
-      if (error) throw error
+      // Usar la API del servidor para subir con supabaseAdmin (bypasa RLS)
+      const formData = new FormData()
+      formData.append('file', file)
 
-      const { data: { publicUrl } } = supabase.storage.from('chat-media').getPublicUrl(filePath)
-      
+      const res = await fetch('/api/upload/media', {
+        method: 'POST',
+        headers: {
+          // Enviar el token JWT para que la API pueda verificar autenticación
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Error al subir el archivo')
+      }
+
+      const { url: publicUrl } = await res.json()
       await enviarMensaje(null, publicUrl, tipo === 'documento' ? 'archivo' : 'imagen')
       setMostrarClipMenu(false)
     } catch (err) {
       console.error('Error subiendo:', err)
-      alert('Error al subir archivo. Asegúrate de tener el bucket "chat-media" en Supabase.')
+      alert('Error al subir archivo: ' + (err.message || 'Intenta de nuevo'))
     } finally {
       setCargando(false)
     }
