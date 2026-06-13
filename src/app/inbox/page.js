@@ -867,7 +867,7 @@ export default function PaginaInbox() {
                   <span className="material-symbols-outlined text-[#00a884] text-[20px]">image</span>
                   <span className="text-[13px] font-medium">Fotos y Videos</span>
                 </button>
-                <input type="file" ref={fileInputRef} onChange={(e) => subirArchivo(e, 'imagen')} accept="image/*" className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={(e) => subirArchivo(e, 'imagen')} accept="image/*,video/*" className="hidden" />
 
                 <button type="button" onClick={() => docInputRef.current?.click()} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 text-slate-700 transition-colors rounded-xl text-left whitespace-nowrap">
                   <span className="material-symbols-outlined text-[#7f66ff] text-[20px]">description</span>
