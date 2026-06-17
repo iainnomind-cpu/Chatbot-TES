@@ -28,10 +28,12 @@ export default function PaginaProspectos() {
     { 
       nombre: 'estado', etiqueta: 'Estado', tipo: 'select', 
       opciones: [
-        { valor: 'nuevo', etiqueta: 'Nuevo' },
-        { valor: 'en_proceso', etiqueta: 'En Proceso' },
-        { valor: 'contactado', etiqueta: 'Contactado' },
-        { valor: 'agendado', etiqueta: 'Agendado' },
+        { valor: 'Borrador', etiqueta: 'Borrador' },
+        { valor: 'Contactado', etiqueta: 'Contactado' },
+        { valor: 'Interesado', etiqueta: 'Interesado' },
+        { valor: 'Agendado', etiqueta: 'Agendado' },
+        { valor: 'Convertido', etiqueta: 'Convertido' },
+        { valor: 'Perdido', etiqueta: 'Perdido' },
       ]
     },
     {
