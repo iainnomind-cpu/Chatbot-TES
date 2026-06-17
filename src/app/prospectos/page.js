@@ -96,12 +96,26 @@ export default function PaginaProspectos() {
 
   const handleGuardarProspecto = async (datos) => {
     try {
+      // Extraer solo columnas reales de la tabla prospectos
+      // (quitar relaciones JOIN como citas, conversaciones, y campos auto-generados)
+      const {
+        citas,
+        conversaciones,
+        id,
+        creado_en,
+        actualizado_en,
+        ...datosSinRelaciones
+      } = datos
+
       if (prospectoEditando) {
-        const { error } = await supabase.from('prospectos').update(datos).eq('id', prospectoEditando.id)
+        const { error } = await supabase
+          .from('prospectos')
+          .update(datosSinRelaciones)
+          .eq('id', prospectoEditando.id)
         if (error) throw error
         setUltimoToast({ tipo: 'exito', titulo: 'Actualizado', mensaje: 'Prospecto actualizado correctamente' })
       } else {
-        const { error } = await supabase.from('prospectos').insert([datos])
+        const { error } = await supabase.from('prospectos').insert([datosSinRelaciones])
         if (error) throw error
         setUltimoToast({ tipo: 'exito', titulo: 'Creado', mensaje: 'Prospecto creado correctamente' })
       }
@@ -109,7 +123,7 @@ export default function PaginaProspectos() {
       cargarProspectos()
     } catch (error) {
       console.error('Error guardando:', error)
-      setUltimoToast({ tipo: 'error', titulo: 'Error', mensaje: 'No se pudo guardar la información' })
+      setUltimoToast({ tipo: 'error', titulo: 'Error', mensaje: error.message || 'No se pudo guardar la información' })
     }
   }
 
