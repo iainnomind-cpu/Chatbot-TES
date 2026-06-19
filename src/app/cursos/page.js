@@ -6,7 +6,7 @@ import ModalFormulario from '@/componentes/ModalFormulario'
 const camposCurso = [
   { nombre: 'nombre', etiqueta: 'Nombre del curso', tipo: 'text', placeholder: 'Ej: Inglés de Negocios Elite', requerido: true },
   { nombre: 'frase_espejo', etiqueta: 'Frase Espejo (IA)', tipo: 'textarea', placeholder: 'Ej: ¡Qué gran iniciativa buscar lo mejor... 🌟', requerido: false },
-  { nombre: 'beneficios', etiqueta: 'Beneficios Condensados', tipo: 'textarea', placeholder: 'Lista de beneficios con emojis...', requerido: false },
+  { nombre: 'beneficios', etiqueta: 'Texto EXACTO del Chatbot (Beneficios, precios, etc)', tipo: 'textarea', placeholder: 'Pega aquí el copy exacto de ventas...', requerido: false },
   { nombre: 'precio_ancla', etiqueta: 'Precio Ancla (Texto Persuasivo)', tipo: 'text', placeholder: 'Ej: Planes de beca desde $350 MXN semanales.', requerido: false },
   { nombre: 'regalo_gancho', etiqueta: 'Regalo (Gancho)', tipo: 'text', placeholder: 'Ej: 🎁 Pase para una Clase Muestra', requerido: false },
   { nombre: 'descripcion', etiqueta: 'Descripción', tipo: 'textarea', placeholder: 'Describe el contenido del curso...', requerido: false },

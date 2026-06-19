@@ -993,71 +993,58 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           }
         }
 
-        const limiteCaption = 1000;
-
-        if (textoCaption && textoCaption.length > limiteCaption) {
-          // 1. Guardar imagen en DB
+        if (imgUrl) {
+          // 1. Guardar imagen en DB (sin texto, mensaje independiente)
           await supabase.from("mensajes").insert({
             conversacion_id: convExist.id,
             remitente: "bot",
-            contenido: "[Imagen enviada]",
+            contenido: "[Imagen del programa]",
             tipo: "imagen",
             url_archivo: imgUrl,
           });
-          // Enviar imagen por Meta
+          // Enviar imagen por Meta (SIN caption)
           try {
             await marcarEscribiendoWrapper(remitenteId);
-            await sleep(2000);
+            await sleep(1500);
             const imgOk = await enviarRespuesta(remitenteId, null, imgUrl);
-            console.log("🖼️ [8/10] Imagen enviada por Meta:", imgOk ? "OK" : "FALLÓ");
+            console.log("🖼️ [8/10] Imagen enviada por Meta (separada):", imgOk ? "OK" : "FALLÓ");
           } catch (e) {
             console.error("❌ [8/10] Error enviando imagen:", e.message);
           }
+        }
 
-          // 2. Guardar texto en DB
+        if (textoCaption) {
+          // 2. Guardar texto en DB (después de la imagen)
           await supabase.from("mensajes").insert({
             conversacion_id: convExist.id,
             remitente: "bot",
             contenido: textoCaption,
             tipo: "texto",
           });
-          // Enviar texto por Meta
-          try {
-            await marcarEscribiendoWrapper(remitenteId);
-            await sleep(1500);
-            const txtOk = await enviarRespuesta(remitenteId, textoCaption);
-            console.log("📤 [8/10] Texto largo enviado:", txtOk ? "OK" : "FALLÓ");
-          } catch (e) {
-            console.error("❌ [8/10] Error enviando texto:", e.message);
-          }
-        } else {
-          // Guardar imagen+caption en DB
-          await supabase.from("mensajes").insert({
-            conversacion_id: convExist.id,
-            remitente: "bot",
-            contenido: "[Imagen] " + (textoCaption || ""),
-            tipo: "imagen",
-            url_archivo: imgUrl,
-          });
-          // Enviar por Meta
+          // Enviar texto por Meta (separado de la imagen)
           try {
             await marcarEscribiendoWrapper(remitenteId);
             await sleep(2000);
-            const imgOk = await enviarRespuesta(remitenteId, textoCaption || null, imgUrl);
-            console.log("🖼️ [8/10] Imagen+caption enviada:", imgOk ? "OK" : "FALLÓ");
-
-            if (imgOk && typeof textoCierre === 'string' && textoCierre.trim()) {
-              await supabase.from("mensajes").insert({
-                conversacion_id: convExist.id,
-                remitente: "bot",
-                contenido: textoCierre.trim(),
-                tipo: "texto",
-              });
-              await sleep(1000);
-              await enviarRespuesta(remitenteId, textoCierre);
-            }
+            const txtOk = await enviarRespuesta(remitenteId, textoCaption);
+            console.log("📤 [8/10] Texto descriptivo enviado:", txtOk ? "OK" : "FALLÓ");
           } catch (e) {
-            console.error("❌ [8/10] Error enviando imagen+caption:", e.message);
+            console.error("❌ [8/10] Error enviando texto:", e.message);
+          }
+        }
+
+        // Si hay texto de cierre (opcional, si se separó en 3 partes), se envía al final
+        if (typeof textoCierre === 'string' && textoCierre.trim()) {
+          try {
+            await supabase.from("mensajes").insert({
+              conversacion_id: convExist.id,
+              remitente: "bot",
+              contenido: textoCierre.trim(),
+              tipo: "texto",
+            });
+            await sleep(1500);
+            await enviarRespuesta(remitenteId, textoCierre);
+          } catch (e) {
+            console.error("❌ [8/10] Error enviando cierre:", e.message);
           }
         }
 
