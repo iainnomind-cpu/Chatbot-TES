@@ -922,6 +922,11 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     let respuestaLimpia = respuesta;
     if (respuestaLimpia) {
       respuestaLimpia = respuestaLimpia.replace(/\\n/g, '\n');
+      // Limpiar texto residual de opciones/botones que la IA pueda haber incluido
+      respuestaLimpia = respuestaLimpia.replace(/\*?\(?JSON opciones:.*?\)\*?/gi, '');
+      respuestaLimpia = respuestaLimpia.replace(/¿Qué prefieres\??\s*👇?\s*$/gm, '');
+      respuestaLimpia = respuestaLimpia.replace(/\n\n+$/g, '');
+      respuestaLimpia = respuestaLimpia.trim();
     }
     try {
       if (
@@ -1048,17 +1053,17 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           }
         }
 
-        // Si hay botones, enviarlos como mensaje separado DESPUÉS de la imagen
+        // Enviar botones después de la imagen+texto (si hay opciones)
         if (opcionesLimpias) {
           try {
             await supabase.from("mensajes").insert({
               conversacion_id: convExist.id,
               remitente: "bot",
-              contenido: "¿Qué prefieres? 👇\n" + opcionesLimpias.map(o => "• " + o).join("\n"),
+              contenido: opcionesLimpias.map(o => "• " + o).join("\n"),
               tipo: "texto",
             });
             await sleep(1000);
-            await enviarRespuesta(remitenteId, "¿Qué prefieres? 👇", null, opcionesLimpias);
+            await enviarRespuesta(remitenteId, "Elige una opción:", null, opcionesLimpias);
           } catch (e) {
             console.error("❌ [8/10] Error enviando opciones:", e.message);
           }
