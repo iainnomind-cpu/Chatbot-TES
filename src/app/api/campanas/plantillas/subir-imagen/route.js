@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
-import axios from 'axios'
-import FormData from 'form-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,39 +24,42 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Faltan credenciales de Meta' }, { status: 500 })
     }
 
-    // Convertir el archivo a Buffer
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    const fileName = file.name || 'image.jpg'
+    // Validar tipo de archivo (file.type existe en objetos File de Next.js)
     const mimeType = file.type || 'image/jpeg'
-
-    // Validar tipo de archivo
     const tiposPermitidos = ['image/jpeg', 'image/jpg', 'image/png']
     if (!tiposPermitidos.includes(mimeType)) {
       return NextResponse.json({ error: 'Solo se permiten imágenes JPG y PNG' }, { status: 400 })
     }
 
-    // Validar tamaño (max 5MB)
-    if (buffer.length > 5 * 1024 * 1024) {
+    // Validar tamaño (file.size existe en objetos File)
+    if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json({ error: 'La imagen no puede superar los 5MB' }, { status: 400 })
     }
+
+    // Modificar el formData nativo directamente para añadir el parámetro requerido por Meta
+    formData.append('messaging_product', 'whatsapp')
 
     // Subir a Meta usando el endpoint de Media estándar de WhatsApp
     const uploadUrl = `https://graph.facebook.com/v20.0/${phoneNumberId}/media`
 
-    // Crear el multipart/form-data usando form-data (npm)
-    const form = new FormData()
-    form.append('messaging_product', 'whatsapp')
-    form.append('file', buffer, { filename: fileName, contentType: mimeType })
-
-    const uploadRes = await axios.post(uploadUrl, form, {
+    // En Next.js App Router, usar fetch nativo con el FormData nativo garantiza que
+    // los headers de Content-Type y boundary se construyan perfectamente.
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
-        ...form.getHeaders()
-      }
+        'Authorization': `Bearer ${token}`
+        // NO SE DEBE poner Content-Type. Fetch lo calcula con su boundary.
+      },
+      body: formData
     })
 
-    const headerHandle = uploadRes.data?.id
+    const uploadData = await uploadRes.json()
+
+    if (!uploadRes.ok) {
+      throw { response: { status: uploadRes.status, data: { error: uploadData.error } } }
+    }
+
+    const headerHandle = uploadData?.id
     if (!headerHandle) {
       throw new Error('Meta no devolvió un ID de imagen válido')
     }
