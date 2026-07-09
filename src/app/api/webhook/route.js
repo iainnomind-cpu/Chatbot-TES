@@ -19,6 +19,46 @@ export async function GET(solicitud) {
   }
   return NextResponse.json({ error: "Verificación fallida" }, { status: 403 });
 }
+
+// === HELPER FUNCTIONS PARA LOCK DISTRIBUIDO ===
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function acquireLock(conversacionId) {
+  const maxRetries = 20; // 20 * 1.5s = 30s de espera máxima
+  for (let i = 0; i < maxRetries; i++) {
+    const now = new Date();
+    const lockTimeout = new Date(now.getTime() + 45000); // El lock dura 45s antes de expirar solo
+    
+    const { data } = await supabase
+      .from('conversaciones')
+      .update({ bot_bloqueado_hasta: lockTimeout.toISOString() })
+      .eq('id', conversacionId)
+      .lte('bot_bloqueado_hasta', now.toISOString()) // Solo actualiza si ya expiró el anterior o está libre
+      .select('id')
+      .maybeSingle();
+      
+    if (data && data.id) {
+      return true; // Lock adquirido exitosamente
+    }
+    
+    // Si no obtuvimos el lock, esperamos y reintentamos
+    await sleep(1500);
+  }
+  return false; // Tiempo de espera agotado
+}
+
+async function releaseLock(conversacionId) {
+  try {
+    const past = new Date('2000-01-01T00:00:00Z');
+    await supabase
+      .from('conversaciones')
+      .update({ bot_bloqueado_hasta: past.toISOString() })
+      .eq('id', conversacionId);
+  } catch (e) {
+    console.error("Error liberando lock:", e.message);
+  }
+}
+
 export async function POST(solicitud) {
   try {
     const cuerpo = await solicitud.json();
@@ -233,23 +273,35 @@ export async function POST(solicitud) {
       return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
     }
 
-    // DEBOUNCE: Evitar que el bot responda varias veces si el usuario envía 2 mensajes muy rápido.
-    // Si hay un mensaje de usuario MÁS NUEVO en esta misma conversación, abortar la petición vieja.
-    const { data: ultimoMsgUsuario } = await supabase
-      .from("mensajes")
-      .select("id_mensaje_meta")
-      .eq("conversacion_id", convExist.id)
-      .eq("remitente", "usuario")
-      .order("creado_en", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (ultimoMsgUsuario && ultimoMsgUsuario.id_mensaje_meta !== mensajeId) {
-      console.log(`⏭️ [DEBOUNCE] Abortando petición antigua (${mensajeId}), hay un mensaje más nuevo.`);
-      return NextResponse.json({ estado: "reemplazado_por_nuevo" }, { status: 200 });
+    // === PASO 3: ADQUIRIR LOCK DE CONVERSACIÓN ===
+    // Esperamos a que la conversación esté libre para procesar (evita respuestas dobles a mensajes rápidos)
+    const lockAdquirido = await acquireLock(convExist.id);
+    if (!lockAdquirido) {
+      console.log(`⏭️ [LOCK] No se pudo adquirir el lock para ${convExist.id} después de esperar. Abortando.`);
+      return NextResponse.json({ estado: "timeout_lock" }, { status: 200 });
     }
 
-    console.log(`🏆 [WINNER] Ejecución oficial para: ${mensajeId}`);
+    try {
+      // === DEBOUNCE MEJORADO ===
+      // Ya tenemos el lock. Verificamos si somos el mensaje MÁS RECIENTE.
+      // Si el usuario envió 2 mensajes rápidos, el primero insertó, esperó el lock, lo tomó.
+      // Pero si somos el primero y hay un segundo mensaje ya insertado en BD, dejamos que el segundo se encargue (que está esperando el lock).
+      const { data: ultimoMsgUsuario } = await supabase
+        .from("mensajes")
+        .select("id_mensaje_meta, id")
+        .eq("conversacion_id", convExist.id)
+        .eq("remitente", "usuario")
+        .order("creado_en", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ultimoMsgUsuario && ultimoMsgUsuario.id_mensaje_meta !== mensajeId) {
+        console.log(`⏭️ [DEBOUNCE] Abortando petición antigua (${mensajeId}), hay un mensaje más nuevo.`);
+        return NextResponse.json({ estado: "reemplazado_por_nuevo" }, { status: 200 });
+      }
+
+      console.log(`🏆 [WINNER] Ejecución oficial para: ${mensajeId}`);
 
     // === ACTUALIZAR INBOX EN TIEMPO REAL ===
     // Actualizar ultimo_mensaje y actualizado_en en la tabla conversaciones para que el sidebar se ordene y muestre el mensaje inmediatamente
@@ -1143,6 +1195,11 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         .eq("id", convExist.id);
     }
     return NextResponse.json({ estado: "procesado" }, { status: 200 });
+    
+    } finally {
+      // SIEMPRE liberar el lock al terminar (éxito, pausa humano, o aborto)
+      await releaseLock(convExist.id);
+    }
   } catch (error) {
     console.error("❌ [FATAL] Error Webhook:", error.message);
     console.error("❌ [FATAL] Stack:", error.stack);
