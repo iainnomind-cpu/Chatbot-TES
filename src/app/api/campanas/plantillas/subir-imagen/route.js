@@ -43,8 +43,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'La imagen no puede superar los 5MB' }, { status: 400 })
     }
 
+    // Obtener el APP_ID dinámicamente usando el token (requerido para Resumable Upload API)
+    const debugRes = await axios.get(`https://graph.facebook.com/v20.0/debug_token`, {
+      params: {
+        input_token: token,
+        access_token: token
+      }
+    })
+    const appId = debugRes.data?.data?.app_id
+
+    if (!appId) {
+      throw new Error('No se pudo obtener el App ID del token de Meta')
+    }
+
     // Subir a Meta usando el endpoint de upload de media para plantillas
-    const uploadUrl = `https://graph.facebook.com/v20.0/${accountId}/uploads`
+    const uploadUrl = `https://graph.facebook.com/v20.0/${appId}/uploads`
 
     // Paso 1: Iniciar upload session
     const sessionRes = await axios.post(uploadUrl, null, {
