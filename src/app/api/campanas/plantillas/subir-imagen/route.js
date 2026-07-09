@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic'
 
 // POST - Subir imagen a Meta usando la Resumable Upload API
 // Esta API devuelve un "handle" (campo h) que es el único válido como header_handle en plantillas.
-// Es diferente a la Media API que devuelve un "id" (solo sirve para enviar mensajes, NO para plantillas).
 export async function POST(request) {
   const auth = await requireAuth(request)
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -20,11 +19,28 @@ export async function POST(request) {
     }
 
     const token = process.env.META_WHATSAPP_TOKEN
-    const appId = process.env.META_APP_ID // App ID de Meta (diferente al WABA ID y al Phone Number ID)
+    // META_APP_ID es opcional: si no está, lo obtenemos automáticamente del token
+    let appId = process.env.META_APP_ID
 
-    if (!token || !appId) {
+    if (!token) {
+      return NextResponse.json({ error: 'Falta la credencial META_WHATSAPP_TOKEN' }, { status: 500 })
+    }
+
+    // Si no está configurado META_APP_ID, lo obtenemos del token via debug_token
+    if (!appId) {
+      try {
+        const debugRes = await axios.get('https://graph.facebook.com/v20.0/debug_token', {
+          params: { input_token: token, access_token: token }
+        })
+        appId = debugRes.data?.data?.app_id
+      } catch (e) {
+        console.warn('No se pudo auto-detectar el APP_ID:', e.message)
+      }
+    }
+
+    if (!appId) {
       return NextResponse.json({
-        error: 'Faltan credenciales: META_WHATSAPP_TOKEN y META_APP_ID son requeridos en las variables de entorno'
+        error: 'No se pudo obtener el App ID de Meta. Agrega META_APP_ID en las variables de entorno de Vercel.'
       }, { status: 500 })
     }
 
@@ -42,7 +58,7 @@ export async function POST(request) {
     }
 
     // === PASO 1: Crear sesión de upload (Resumable Upload API) ===
-    // Requiere el APP_ID de tu aplicación de Meta
+    console.log(`📤 Iniciando upload con App ID: ${appId}`)
     const sessionRes = await axios.post(
       `https://graph.facebook.com/v20.0/${appId}/uploads`,
       null,
@@ -59,6 +75,7 @@ export async function POST(request) {
     if (!uploadSessionId) {
       throw new Error('Meta no devolvió un ID de sesión de upload')
     }
+    console.log(`✅ Sesión creada: ${uploadSessionId}`)
 
     // === PASO 2: Subir el archivo binario a la sesión ===
     const uploadRes = await axios.post(
@@ -75,6 +92,8 @@ export async function POST(request) {
 
     // La Resumable Upload API devuelve el handle en el campo "h" (no "id")
     const headerHandle = uploadRes.data?.h
+    console.log(`🖼️ Respuesta de upload:`, JSON.stringify(uploadRes.data))
+
     if (!headerHandle) {
       throw new Error(`Meta no devolvió un handle válido. Respuesta: ${JSON.stringify(uploadRes.data)}`)
     }
