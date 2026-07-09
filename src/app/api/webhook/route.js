@@ -1209,7 +1209,6 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
 
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function obtenerNombrePerfilMeta(id, plataforma) {
   try {
