@@ -102,6 +102,24 @@ export default function ModalFormulario({ abierto, alCerrar, titulo, campos, alE
                   value={datosFormulario[campo.nombre] || ''}
                   onChange={(e) => manejarCambio(campo.nombre, e.target.value)}
                 />
+              ) : campo.tipo === 'toggle' ? (
+                <div
+                  onClick={() => manejarCambio(campo.nombre, !datosFormulario[campo.nombre])}
+                  className={`relative inline-flex items-center w-12 h-6 rounded-full cursor-pointer transition-colors ${
+                    datosFormulario[campo.nombre] ? 'bg-amber-400' : 'bg-slate-200'
+                  }`}
+                >
+                  <span className={`inline-block w-5 h-5 bg-white rounded-full shadow transform transition-transform ${
+                    datosFormulario[campo.nombre] ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </div>
+              ) : campo.tipo === 'date' ? (
+                <input
+                  className="w-full rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm p-3"
+                  type="date"
+                  value={datosFormulario[campo.nombre] ? String(datosFormulario[campo.nombre]).split('T')[0] : ''}
+                  onChange={(e) => manejarCambio(campo.nombre, e.target.value || null)}
+                />
               ) : campo.tipo === 'select' ? (
                 <select
                   className="w-full rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm p-3"

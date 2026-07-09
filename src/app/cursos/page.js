@@ -5,6 +5,9 @@ import ModalFormulario from '@/componentes/ModalFormulario'
 
 const camposCurso = [
   { nombre: 'nombre', etiqueta: 'Nombre del curso', tipo: 'text', placeholder: 'Ej: Inglés de Negocios Elite', requerido: true },
+  { nombre: 'es_especial', etiqueta: '🌟 ¿Es un Curso Especial/Temporal? (El bot lo recomienda directo, sin perfilamiento)', tipo: 'toggle', requerido: false },
+  { nombre: 'fecha_inicio_vigencia', etiqueta: 'Vigente desde (opcional)', tipo: 'date', requerido: false },
+  { nombre: 'fecha_fin_vigencia', etiqueta: 'Vigente hasta (opcional)', tipo: 'date', requerido: false },
   { nombre: 'frase_espejo', etiqueta: 'Frase Espejo (IA)', tipo: 'textarea', placeholder: 'Ej: ¡Qué gran iniciativa buscar lo mejor... 🌟', requerido: false },
   { nombre: 'beneficios', etiqueta: 'Texto EXACTO del Chatbot (Beneficios, precios, etc)', tipo: 'textarea', placeholder: 'Pega aquí el copy exacto de ventas...', requerido: false },
   { nombre: 'precio_ancla', etiqueta: 'Precio Ancla (Texto Persuasivo)', tipo: 'text', placeholder: 'Ej: Planes de beca desde $350 MXN semanales.', requerido: false },
@@ -199,6 +202,14 @@ export default function PaginaCursos() {
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
                   <span className="material-symbols-outlined text-5xl text-blue-400">school</span>
+                </div>
+              )}
+              {/* Badge especial */}
+              {curso.es_especial && (
+                <div className="absolute top-4 left-4">
+                  <span className="bg-amber-400 text-amber-900 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow">
+                    🌟 Especial
+                  </span>
                 </div>
               )}
               <div className="absolute top-4 right-4 flex gap-2">

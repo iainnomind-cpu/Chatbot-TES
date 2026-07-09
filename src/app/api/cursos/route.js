@@ -34,7 +34,10 @@ export async function POST(solicitud) {
     precio: cuerpo.precio ? Number(cuerpo.precio) : null,
     capacidad: cuerpo.capacidad ? Number(cuerpo.capacidad) : null,
     edad_minima: cuerpo.edad_minima ? Number(cuerpo.edad_minima) : 0,
-    edad_maxima: cuerpo.edad_maxima ? Number(cuerpo.edad_maxima) : 99
+    edad_maxima: cuerpo.edad_maxima ? Number(cuerpo.edad_maxima) : 99,
+    es_especial: cuerpo.es_especial === true || cuerpo.es_especial === 'true' || false,
+    fecha_inicio_vigencia: cuerpo.fecha_inicio_vigencia || null,
+    fecha_fin_vigencia: cuerpo.fecha_fin_vigencia || null,
   }
 
   const { data: curso, error } = await supabase
@@ -73,6 +76,9 @@ export async function PUT(solicitud) {
     capacidad: datosActualizacion.capacidad ? Number(datosActualizacion.capacidad) : null,
     edad_minima: datosActualizacion.edad_minima ? Number(datosActualizacion.edad_minima) : null,
     edad_maxima: datosActualizacion.edad_maxima ? Number(datosActualizacion.edad_maxima) : null,
+    es_especial: datosActualizacion.es_especial === true || datosActualizacion.es_especial === 'true' || false,
+    fecha_inicio_vigencia: datosActualizacion.fecha_inicio_vigencia || null,
+    fecha_fin_vigencia: datosActualizacion.fecha_fin_vigencia || null,
   }
 
   const { data: curso, error } = await supabase
