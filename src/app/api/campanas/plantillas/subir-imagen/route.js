@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
-import axios from 'axios'
-import FormData from 'form-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,49 +41,35 @@ export async function POST(request) {
       return NextResponse.json({ error: 'La imagen no puede superar los 5MB' }, { status: 400 })
     }
 
-    // Obtener el APP_ID dinámicamente usando el token (requerido para Resumable Upload API)
-    const debugRes = await axios.get(`https://graph.facebook.com/v20.0/debug_token`, {
-      params: {
-        input_token: token,
-        access_token: token
-      }
-    })
-    const appId = debugRes.data?.data?.app_id
+    // Subir a Meta usando el endpoint de Media estándar de WhatsApp
+    const uploadUrl = `https://graph.facebook.com/v20.0/${phoneNumberId}/media`
 
-    if (!appId) {
-      throw new Error('No se pudo obtener el App ID del token de Meta')
-    }
+    // Crear el multipart/form-data usando FormData nativo
+    const form = new FormData()
+    form.append('messaging_product', 'whatsapp')
+    // Creamos un Blob a partir del buffer para poder enviarlo
+    const blob = new Blob([buffer], { type: mimeType })
+    form.append('file', blob, fileName)
 
-    // Subir a Meta usando el endpoint de upload de media para plantillas
-    const uploadUrl = `https://graph.facebook.com/v20.0/${appId}/uploads`
-
-    // Paso 1: Iniciar upload session
-    const sessionRes = await axios.post(uploadUrl, null, {
-      params: {
-        file_length: buffer.length,
-        file_type: mimeType,
-        access_token: token,
-      },
-    })
-
-    const uploadSessionId = sessionRes.data?.id
-    if (!uploadSessionId) {
-      throw new Error('No se pudo iniciar la sesión de upload en Meta')
-    }
-
-    // Paso 2: Subir el archivo
-    const uploadFileUrl = `https://graph.facebook.com/v20.0/${uploadSessionId}`
-    const uploadRes = await axios.post(uploadFileUrl, buffer, {
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
       headers: {
-        Authorization: `OAuth ${token}`,
-        file_offset: '0',
-        'Content-Type': mimeType,
+        Authorization: `Bearer ${token}`
+        // IMPORTANTE: fetch y FormData se encargan automáticamente de añadir
+        // el Content-Type multipart/form-data con su boundary.
       },
+      body: form
     })
 
-    const headerHandle = uploadRes.data?.h
+    const uploadData = await uploadRes.json()
+
+    if (!uploadRes.ok) {
+      throw { response: { status: uploadRes.status, data: { error: uploadData.error } } }
+    }
+
+    const headerHandle = uploadData?.id
     if (!headerHandle) {
-      throw new Error('Meta no devolvió un handle de imagen válido')
+      throw new Error('Meta no devolvió un ID de imagen válido')
     }
 
     return NextResponse.json({
