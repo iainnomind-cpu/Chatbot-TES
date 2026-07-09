@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
+import axios from 'axios'
+import FormData from 'form-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,30 +46,19 @@ export async function POST(request) {
     // Subir a Meta usando el endpoint de Media estándar de WhatsApp
     const uploadUrl = `https://graph.facebook.com/v20.0/${phoneNumberId}/media`
 
-    // Crear el multipart/form-data usando FormData nativo
+    // Crear el multipart/form-data usando form-data (npm)
     const form = new FormData()
     form.append('messaging_product', 'whatsapp')
-    // Creamos un Blob a partir del buffer para poder enviarlo
-    const blob = new Blob([buffer], { type: mimeType })
-    form.append('file', blob, fileName)
+    form.append('file', buffer, { filename: fileName, contentType: mimeType })
 
-    const uploadRes = await fetch(uploadUrl, {
-      method: 'POST',
+    const uploadRes = await axios.post(uploadUrl, form, {
       headers: {
-        Authorization: `Bearer ${token}`
-        // IMPORTANTE: fetch y FormData se encargan automáticamente de añadir
-        // el Content-Type multipart/form-data con su boundary.
-      },
-      body: form
+        Authorization: `Bearer ${token}`,
+        ...form.getHeaders()
+      }
     })
 
-    const uploadData = await uploadRes.json()
-
-    if (!uploadRes.ok) {
-      throw { response: { status: uploadRes.status, data: { error: uploadData.error } } }
-    }
-
-    const headerHandle = uploadData?.id
+    const headerHandle = uploadRes.data?.id
     if (!headerHandle) {
       throw new Error('Meta no devolvió un ID de imagen válido')
     }
