@@ -30,6 +30,10 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
   const [tipoHeader, setTipoHeader] = useState('none') // none, text, image
   const [headerText, setHeaderText] = useState('')
   const [headerImageUrl, setHeaderImageUrl] = useState('')
+  const [headerHandle, setHeaderHandle] = useState('')
+  const [subiendoImagen, setSubiendoImagen] = useState(false)
+  const [imagenNombre, setImagenNombre] = useState('')
+  const fileInputRef = useRef(null)
   const [body, setBody] = useState('')
   const [footer, setFooter] = useState('')
   const [botones, setBotones] = useState([])
@@ -83,8 +87,8 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
 
     if (tipoHeader === 'text' && headerText) {
       components.push({ type: 'HEADER', format: 'TEXT', text: headerText })
-    } else if (tipoHeader === 'image') {
-      components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerImageUrl] } })
+    } else if (tipoHeader === 'image' && headerHandle) {
+      components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerHandle] } })
     }
 
     if (body) {
@@ -115,10 +119,35 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
     return components
   }
 
+  const subirImagenHeader = async (file) => {
+    setSubiendoImagen(true)
+    setError('')
+    setHeaderHandle('')
+    setImagenNombre(file.name)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetchAuth('/api/campanas/plantillas/subir-imagen', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (res.ok && data.header_handle) {
+        setHeaderHandle(data.header_handle)
+      } else {
+        setError(data.error || 'Error subiendo imagen')
+        setImagenNombre('')
+      }
+    } catch (e) {
+      setError('Error de conexión al subir imagen: ' + e.message)
+      setImagenNombre('')
+    } finally {
+      setSubiendoImagen(false)
+    }
+  }
+
   const enviarAMeta = async () => {
     setError(''); setExito('')
     if (!nombre.trim()) { setError('Ingresa un nombre para la plantilla'); return }
     if (!body.trim()) { setError('El cuerpo del mensaje es requerido'); return }
+    if (tipoHeader === 'image' && !headerHandle) { setError('Por favor sube una imagen para el encabezado'); return }
     if (variablesUnicas.length > 0) {
       for (const v of variablesUnicas) {
         if (!ejemplosVars[v]?.trim()) { setError(`Ingresa un ejemplo para la variable {{${v}}}`); return }
@@ -211,8 +240,32 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
                   placeholder="Título del mensaje (máx 60 caracteres)" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-100 outline-none"/>
               )}
               {tipoHeader === 'image' && (
-                <input value={headerImageUrl} onChange={e => setHeaderImageUrl(e.target.value)}
-                  placeholder="URL de la imagen (https://...)" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-100 outline-none"/>
+                <div className="space-y-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="hidden"
+                    onChange={e => { if (e.target.files?.[0]) subirImagenHeader(e.target.files[0]) }}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={subiendoImagen}
+                    className="w-full border-2 border-dashed border-blue-200 rounded-xl px-4 py-4 text-sm text-blue-600 font-semibold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {subiendoImagen ? 'hourglass_empty' : 'upload'}
+                    </span>
+                    {subiendoImagen ? 'Subiendo imagen a Meta...' : 'Seleccionar imagen (JPG / PNG, máx 5MB)'}
+                  </button>
+                  {headerHandle && (
+                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                      <span className="material-symbols-outlined text-green-600 text-[16px]">check_circle</span>
+                      <span className="text-xs text-green-700 font-semibold truncate">{imagenNombre} — lista para enviar</span>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-400">La imagen se sube a Meta y se usa como muestra en la revisión de la plantilla.</p>
+                </div>
               )}
             </div>
 
