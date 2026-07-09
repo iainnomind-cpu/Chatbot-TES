@@ -10,7 +10,15 @@ export function getAuthHeaders() {
 }
 
 export async function fetchAuth(url, options = {}) {
+  const { body } = options
   const headers = getAuthHeaders()
+
+  // Si el body es FormData, NO ponemos Content-Type.
+  // El navegador lo calcula automáticamente con el boundary correcto para multipart/form-data.
+  if (body instanceof FormData) {
+    delete headers['Content-Type']
+  }
+
   const res = await fetch(url, {
     ...options,
     headers: { ...headers, ...(options.headers || {}) }
