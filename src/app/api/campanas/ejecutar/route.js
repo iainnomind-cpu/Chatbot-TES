@@ -181,8 +181,16 @@ export async function POST(solicitud) {
         if (templateMeta) {
           const bodyComp = templateMeta.components?.find(c => c.type === 'BODY');
           if (bodyComp && bodyComp.text) {
-             const uniqueVars = [...new Set([...bodyComp.text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1]))];
-             const numVars = uniqueVars.length;
+             let numVars = 0;
+             // Meta nos dice exactamente cuántas variables espera en el example
+             if (bodyComp.example?.body_text?.[0]) {
+               numVars = bodyComp.example.body_text[0].length;
+             } else {
+               // Fallback a regex si Meta no incluyó examples
+               const uniqueVars = [...new Set([...bodyComp.text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1]))];
+               numVars = uniqueVars.length;
+             }
+             
              const allVars = [
                prospecto.nombre_alumno || prospecto.nombre || "Estimado/a",
                campana.nombre || "nuestro evento",
@@ -226,7 +234,8 @@ export async function POST(solicitud) {
           const headerComp = templateMeta.components?.find(c => c.type === 'HEADER');
           if (headerComp) {
             if (headerComp.format === 'IMAGE') {
-              const fallbackUrl = 'https://erp-total-english.vercel.app/logo.png';
+              // El logo.png no existe en public, usamos un placeholder confiable para que Meta no rechace por 404
+              const fallbackUrl = 'https://placehold.co/600x400/png?text=Notificacion';
               const imgUrl = campana.imagen_url ? campana.imagen_url : fallbackUrl;
               const finalImageUrl = imgUrl.startsWith('http') ? imgUrl : `${baseUrl}${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`;
               payload.template.components.push({
