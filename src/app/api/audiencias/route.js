@@ -34,6 +34,9 @@ export async function POST(solicitud) {
       filtro_edad_min: cuerpo.filtro_edad_min ? parseInt(cuerpo.filtro_edad_min) : null,
       filtro_edad_max: cuerpo.filtro_edad_max ? parseInt(cuerpo.filtro_edad_max) : null,
       filtro_flexibilidad: cuerpo.filtro_flexibilidad || 'Indistinto',
+      filtro_score: cuerpo.filtro_score || 'Todos',
+      filtro_canal: cuerpo.filtro_canal || 'Todos',
+      prospectos_incluidos: cuerpo.prospectos_incluidos || null,
       total_estimado: cuerpo.total_estimado || 0
     }
 

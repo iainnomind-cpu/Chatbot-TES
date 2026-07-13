@@ -26,8 +26,11 @@ export default function PaginaCampanas() {
     curso: 'Todos',
     edad_min: '',
     edad_max: '',
-    flexibilidad: 'Indistinto'
+    flexibilidad: 'Indistinto',
+    score: 'Todos',
+    canal: 'Todos'
   })
+  const [prospectosSeleccionados, setProspectosSeleccionados] = useState([])
 
   // 1. Obtener plantillas únicas ya utilizadas en el CRM
   const plantillasDelProyecto = [...new Set(campanas.map(c => c.nombre_plantilla).filter(Boolean))]
@@ -174,8 +177,20 @@ export default function PaginaCampanas() {
       if (filtrosAud.flexibilidad === 'Horario Fijo' && (!ph.includes('fijo') && !ph.includes('fija'))) return false;
       if (filtrosAud.flexibilidad === 'Horario Flexible' && !ph.includes('flex')) return false;
     }
+    if (filtrosAud.score !== 'Todos' && (p.lead_score || '').toUpperCase() !== filtrosAud.score.toUpperCase()) return false;
+    if (filtrosAud.canal !== 'Todos' && (p.canal || '').toLowerCase() !== filtrosAud.canal.toLowerCase()) return false;
     return true;
   })
+
+  // Helpers de selección
+  const toggleSeleccion = (id) => {
+    setProspectosSeleccionados(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+  const seleccionarTodos = () => setProspectosSeleccionados(prospectosFiltrados.map(p => p.id))
+  const deseleccionarTodos = () => setProspectosSeleccionados([])
+  const todosSeleccionados = prospectosFiltrados.length > 0 && prospectosFiltrados.every(p => prospectosSeleccionados.includes(p.id))
 
   const crearCampana = async (datos) => {
     try {
@@ -258,8 +273,8 @@ export default function PaginaCampanas() {
   }
 
   const dispararCampanaDinamica = async () => {
-    const ids = prospectosFiltrados.map(p => p.id);
-    if (!ids || ids.length === 0) return alert('No hay prospectos en esta audiencia. Ajusta los filtros.');
+    const ids = prospectosSeleccionados.length > 0 ? prospectosSeleccionados : null;
+    if (!ids || ids.length === 0) return alert('No hay prospectos seleccionados. Marca al menos uno usando los checkboxes.');
 
     const promptText = campanas.map(c => `- ${c.nombre}`).join('\n');
     const idCampaña = prompt(`Ingresa el NOMBRE EXACTO de la Campaña (plantilla) que deseas disparar a esta audiencia filtrada:\n\nCampañas disponibles:\n${promptText}`);
@@ -273,7 +288,7 @@ export default function PaginaCampanas() {
        if (!confirm(`⚠️ La campaña "${campanaRef.nombre}" ya está marcada como 'completada'. ¿Deseas dispararla de nuevo de todos modos?`)) return;
     }
 
-    if (!confirm(`⚠️ Estás a punto de disparar la campaña "${campanaRef.nombre}" a ${ids.length} personas basándonos estrictamente en los filtros de audiencia de tu pantalla.\n\n¿Deseas continuar?`)) return;
+    if (!confirm(`⚠️ Estás a punto de disparar la campaña "${campanaRef.nombre}" a ${ids.length} persona(s) seleccionada(s).\n\n¿Deseas continuar?`)) return;
 
     setEnviando(campanaRef.id)
     try {
@@ -287,6 +302,7 @@ export default function PaginaCampanas() {
       
       if (respuesta.ok) {
         alert(`✅ ¡Campaña de Audiencia Dinámica Disparada!\nPersonas Procesadas: ${resData.alcance_esperado}\nMensajes Oficiales Enviados: ${resData.envios_exitosos}`)
+        setProspectosSeleccionados([])
         cargarCampanas()
       } else {
         alert('❌ Error al disparar: ' + (resData.error || 'Error desconocido'))
@@ -318,7 +334,10 @@ export default function PaginaCampanas() {
           filtro_edad_min: filtrosAud.edad_min,
           filtro_edad_max: filtrosAud.edad_max,
           filtro_flexibilidad: filtrosAud.flexibilidad,
-          total_estimado: prospectosFiltrados.length
+          filtro_score: filtrosAud.score,
+          filtro_canal: filtrosAud.canal,
+          prospectos_incluidos: prospectosSeleccionados.length > 0 ? prospectosSeleccionados : null,
+          total_estimado: prospectosSeleccionados.length > 0 ? prospectosSeleccionados.length : prospectosFiltrados.length
         })
       });
 
@@ -776,21 +795,22 @@ export default function PaginaCampanas() {
                             <label className="text-xs font-bold text-slate-500">Estado del Lead</label>
                             <select 
                               className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 transition-all font-semibold"
-                              value={filtrosAud.estado} onChange={e => setFiltrosAud({...filtrosAud, estado: e.target.value})}
+                              value={filtrosAud.estado} onChange={e => { setFiltrosAud({...filtrosAud, estado: e.target.value}); setProspectosSeleccionados([]); }}
                             >
                               <option>Todos</option>
-                              <option value="nuevo">Nuevo</option>
-                              <option value="contactado">Contactado</option>
-                              <option value="en_proceso">En Proceso</option>
-                              <option value="agendado">Agendado</option>
-                              <option value="inscrito">Inscrito</option>
+                              <option value="Borrador">Borrador</option>
+                              <option value="Contactado">Contactado</option>
+                              <option value="Interesado">Interesado</option>
+                              <option value="Agendado">Agendado</option>
+                              <option value="Convertido">Convertido</option>
+                              <option value="Perdido">Perdido</option>
                             </select>
                           </div>
                           <div className="flex flex-col gap-1.5">
                             <label className="text-xs font-bold text-slate-500">Diplomado de Interés</label>
                             <select 
                               className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 transition-all font-semibold"
-                              value={filtrosAud.curso} onChange={e => setFiltrosAud({...filtrosAud, curso: e.target.value})}
+                              value={filtrosAud.curso} onChange={e => { setFiltrosAud({...filtrosAud, curso: e.target.value}); setProspectosSeleccionados([]); }}
                             >
                               <option>Todos</option>
                               {cursosDisponibles.map(c => (
@@ -798,24 +818,109 @@ export default function PaginaCampanas() {
                               ))}
                             </select>
                           </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500">🌡️ Temperatura del Lead (Score)</label>
+                            <select 
+                              className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 transition-all font-semibold"
+                              value={filtrosAud.score} onChange={e => { setFiltrosAud({...filtrosAud, score: e.target.value}); setProspectosSeleccionados([]); }}
+                            >
+                              <option value="Todos">Todos los scores</option>
+                              <option value="CALIENTE">🔴 Caliente</option>
+                              <option value="TIBIO">🟡 Tibio</option>
+                              <option value="FRIO">🔵 Frío</option>
+                              <option value="">Sin score</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500">📱 Canal de Procedencia</label>
+                            <select 
+                              className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 transition-all font-semibold"
+                              value={filtrosAud.canal} onChange={e => { setFiltrosAud({...filtrosAud, canal: e.target.value}); setProspectosSeleccionados([]); }}
+                            >
+                              <option value="Todos">Todos los canales</option>
+                              <option value="WhatsApp">WhatsApp</option>
+                              <option value="Messenger">Messenger</option>
+                              <option value="Instagram">Instagram</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500">Edad Mínima</label>
+                            <input type="number" placeholder="Ej: 5" className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 transition-all font-semibold" value={filtrosAud.edad_min} onChange={e => { setFiltrosAud({...filtrosAud, edad_min: e.target.value}); setProspectosSeleccionados([]); }} />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500">Edad Máxima</label>
+                            <input type="number" placeholder="Ej: 18" className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 transition-all font-semibold" value={filtrosAud.edad_max} onChange={e => { setFiltrosAud({...filtrosAud, edad_max: e.target.value}); setProspectosSeleccionados([]); }} />
+                          </div>
                         </div>
                       </div>
 
                       {prospectosFiltrados.length > 0 && (
-                        <div className="bg-white border border-slate-200 p-8 rounded-2xl shadow-sm">
-                          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-6">Muestra de Audiencia</h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {prospectosFiltrados.slice(0, 10).map(p => (
-                              <div key={p.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-                                  {(p.nombre_alumno || p.nombre || '?')[0].toUpperCase()}
-                                </div>
-                                <div className="overflow-hidden">
-                                  <p className="text-sm font-bold text-slate-800 truncate">{p.nombre_alumno || p.nombre}</p>
-                                  <p className="text-[11px] text-slate-500 font-medium">WhatsApp: {p.telefono}</p>
-                                </div>
-                              </div>
-                            ))}
+                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+                            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                              Audiencia ({prospectosFiltrados.length} personas)
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500 font-medium">{prospectosSeleccionados.length} seleccionados</span>
+                              <button
+                                onClick={todosSeleccionados ? deseleccionarTodos : seleccionarTodos}
+                                className="text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                              >
+                                {todosSeleccionados ? 'Desmarcar todos' : 'Seleccionar todos'}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-slate-50 border-b border-slate-100">
+                                <tr>
+                                  <th className="w-10 px-4 py-3"></th>
+                                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Nombre</th>
+                                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Teléfono</th>
+                                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Score</th>
+                                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Canal</th>
+                                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Estado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-50">
+                                {prospectosFiltrados.map(p => {
+                                  const seleccionado = prospectosSeleccionados.includes(p.id)
+                                  const scoreColor = p.lead_score === 'CALIENTE' ? 'text-red-600 bg-red-50' : p.lead_score === 'TIBIO' ? 'text-amber-600 bg-amber-50' : p.lead_score === 'FRIO' ? 'text-blue-600 bg-blue-50' : 'text-slate-400 bg-slate-50'
+                                  const scoreIcon = p.lead_score === 'CALIENTE' ? '🔴' : p.lead_score === 'TIBIO' ? '🟡' : p.lead_score === 'FRIO' ? '🔵' : '–'
+                                  return (
+                                    <tr
+                                      key={p.id}
+                                      onClick={() => toggleSeleccion(p.id)}
+                                      className={`cursor-pointer transition-colors ${seleccionado ? 'bg-blue-50/70' : 'hover:bg-slate-50'}`}
+                                    >
+                                      <td className="px-4 py-3 text-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={seleccionado}
+                                          onChange={() => toggleSeleccion(p.id)}
+                                          onClick={e => e.stopPropagation()}
+                                          className="w-4 h-4 accent-blue-600 cursor-pointer"
+                                        />
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <p className="font-semibold text-slate-800">{p.nombre_alumno || p.nombre || '—'}</p>
+                                        {p.nombre_alumno && p.nombre && <p className="text-xs text-slate-400">Tutor: {p.nombre}</p>}
+                                      </td>
+                                      <td className="px-4 py-3 text-slate-600 font-mono text-xs">{p.telefono}</td>
+                                      <td className="px-4 py-3">
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreColor}`}>
+                                          {scoreIcon} {p.lead_score || 'Sin score'}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 text-slate-500 text-xs">{p.canal || '—'}</td>
+                                      <td className="px-4 py-3">
+                                        <span className="text-xs font-medium text-slate-500 capitalize">{p.estado || '—'}</span>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       )}
@@ -824,10 +929,12 @@ export default function PaginaCampanas() {
                     <div className="space-y-6">
                       <div className="bg-gradient-to-br from-blue-600 to-[#00236f] p-8 rounded-3xl shadow-xl text-white relative overflow-hidden">
                         <span className="material-symbols-outlined text-[160px] absolute -right-10 -bottom-10 opacity-10">groups</span>
-                        <p className="text-blue-200 text-xs font-bold uppercase tracking-widest mb-4 relative z-10">Público Estimado</p>
-                        <p className="text-7xl font-black mb-6 relative z-10">{prospectosFiltrados.length}</p>
-                        <p className="text-sm text-blue-100/80 font-medium relative z-10 mb-8 leading-relaxed">
-                          Este es el número total de personas que cumplen con tus criterios de filtrado actuales.
+                        <p className="text-blue-200 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Filtrados</p>
+                        <p className="text-6xl font-black relative z-10">{prospectosFiltrados.length}</p>
+                        <p className="text-blue-200 text-xs font-bold uppercase tracking-widest mt-4 mb-1 relative z-10">Seleccionados</p>
+                        <p className="text-6xl font-black mb-5 relative z-10">{prospectosSeleccionados.length}</p>
+                        <p className="text-sm text-blue-100/80 font-medium relative z-10 mb-6 leading-relaxed">
+                          Usa los checkboxes para marcar exactamente a quién enviarás el mensaje.
                         </p>
                         <button 
                           onClick={guardarAudienciaActual}
@@ -835,16 +942,16 @@ export default function PaginaCampanas() {
                           className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all relative z-10 ${prospectosFiltrados.length === 0 ? 'bg-white/10 text-white/30' : 'bg-white text-blue-600 hover:bg-blue-50 shadow-lg'}`}
                         >
                           <span className="material-symbols-outlined text-[20px]">save</span>
-                          Guardar Segmentos
+                          Guardar Segmento
                         </button>
 
                         <button 
                           onClick={dispararCampanaDinamica}
-                          disabled={prospectosFiltrados.length === 0}
-                          className={`w-full mt-4 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all relative z-10 border border-white/30 text-white hover:bg-white/10 ${prospectosFiltrados.length === 0 ? 'opacity-30' : ''}`}
+                          disabled={prospectosSeleccionados.length === 0}
+                          className={`w-full mt-4 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all relative z-10 border border-white/30 text-white hover:bg-white/10 ${prospectosSeleccionados.length === 0 ? 'opacity-30' : ''}`}
                         >
                           <span className="material-symbols-outlined text-[20px]">rocket_launch</span>
-                          Lanzar Campaña Directa
+                          Lanzar a {prospectosSeleccionados.length} seleccionado(s)
                         </button>
                       </div>
                     </div>
