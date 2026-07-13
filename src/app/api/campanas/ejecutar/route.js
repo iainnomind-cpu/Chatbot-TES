@@ -61,10 +61,14 @@ export async function POST(solicitud) {
       // Filtrar estrictamente por el canal de la campaña para no mezclar IDs
       query = query.eq('canal', campana.canal || 'whatsapp');
 
-      if (aud.filtro_estado && aud.filtro_estado !== 'Todos') query = query.eq('estado', aud.filtro_estado);
-      if (aud.filtro_curso && aud.filtro_curso !== 'Todos') query = query.ilike('curso_interes', `%${aud.filtro_curso}%`);
-      if (aud.filtro_edad_min) query = query.gte('edad', aud.filtro_edad_min);
-      if (aud.filtro_edad_max) query = query.lte('edad', aud.filtro_edad_max);
+      if (aud.prospectos_incluidos && aud.prospectos_incluidos.length > 0) {
+        query = query.in('id', aud.prospectos_incluidos);
+      } else {
+        if (aud.filtro_estado && aud.filtro_estado !== 'Todos') query = query.eq('estado', aud.filtro_estado);
+        if (aud.filtro_curso && aud.filtro_curso !== 'Todos') query = query.ilike('curso_interes', `%${aud.filtro_curso}%`);
+        if (aud.filtro_edad_min) query = query.gte('edad', aud.filtro_edad_min);
+        if (aud.filtro_edad_max) query = query.lte('edad', aud.filtro_edad_max);
+      }
       
       // Filtrado por flexibilidad (requiere lógica extra si es un string complejo, pero aplicamos el básico)
       const { data: pros, error: errPros } = await query;
@@ -96,6 +100,20 @@ export async function POST(solicitud) {
 
     // 3. Ejecutar envío masivo a WhatsApp, Messenger o Instagram via Meta API
     const esRedes = campana.canal === 'messenger' || campana.canal === 'instagram';
+
+    let templateMeta = null;
+    if (!esRedes && campana.nombre_plantilla) {
+      const wToken = process.env.META_WHATSAPP_TOKEN
+      const accId = process.env.META_BUSINESS_ACCOUNT_ID
+      const urlTpl = `https://graph.facebook.com/v20.0/${accId}/message_templates?name=${campana.nombre_plantilla}`
+      try {
+        const resTpl = await axios.get(urlTpl, { headers: { Authorization: `Bearer ${wToken}` } })
+        templateMeta = resTpl.data.data?.[0]
+      } catch (e) {
+        console.warn('⚠️ No se pudo obtener la definición de la plantilla de Meta:', e.message)
+      }
+    }
+
     const token = esRedes ? process.env.META_PAGE_TOKEN : process.env.META_WHATSAPP_TOKEN;
     const phoneId = process.env.META_PHONE_NUMBER_ID; // Solo WA
     const url = esRedes 
@@ -159,24 +177,48 @@ export async function POST(solicitud) {
         }
       } else {
         // Estructura para WhatsApp (Plantillas Aprobadas)
+        let bodyParams = [];
+        if (templateMeta) {
+          const bodyComp = templateMeta.components?.find(c => c.type === 'BODY');
+          if (bodyComp && bodyComp.text) {
+             const uniqueVars = [...new Set([...bodyComp.text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1]))];
+             const numVars = uniqueVars.length;
+             const allVars = [
+               prospecto.nombre_alumno || prospecto.nombre || "Estimado/a",
+               campana.nombre || "nuestro evento",
+               uniqueLink,
+               "Detalles",
+               "Más información"
+             ];
+             for(let i = 0; i < numVars; i++) {
+               bodyParams.push({ type: "text", text: allVars[i] || "Dato" });
+             }
+          }
+        } else {
+          // Fallback
+          bodyParams = [
+             { type: "text", text: prospecto.nombre_alumno || prospecto.nombre || "Estimado/a" },
+             { type: "text", text: campana.nombre || "nuestro evento" },
+             { type: "text", text: uniqueLink }
+          ];
+        }
+
         payload = {
           messaging_product: 'whatsapp',
           to: to,
           type: 'template',
           template: { 
             name: campana.nombre_plantilla, 
-            language: { code: 'es_MX' },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", text: prospecto.nombre_alumno || prospecto.nombre || "Estimado/a" },
-                  { type: "text", text: campana.nombre || "nuestro evento" },
-                  { type: "text", text: uniqueLink }
-                ]
-              }
-            ]
+            language: { code: templateMeta?.language || 'es_MX' },
+            components: []
           }
+        }
+
+        if (bodyParams.length > 0) {
+           payload.template.components.push({
+             type: "body",
+             parameters: bodyParams
+           });
         }
 
         // Header de imagen para WhatsApp
