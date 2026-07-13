@@ -221,20 +221,41 @@ export async function POST(solicitud) {
            });
         }
 
-        // Header de imagen para WhatsApp
-        if (campana.imagen_url && campana.imagen_url.trim() !== '') {
-          const isUrlExterna = campana.imagen_url.startsWith('http');
-          const finalImageUrl = isUrlExterna ? campana.imagen_url : `${baseUrl}${campana.imagen_url.startsWith('/') ? '' : '/'}${campana.imagen_url}`;
-          
-          payload.template.components.unshift({
-            type: "header",
-            parameters: [
-              {
-                type: "image",
-                image: { link: finalImageUrl }
-              }
-            ]
-          });
+        // Determinar si la plantilla requiere Header
+        if (templateMeta) {
+          const headerComp = templateMeta.components?.find(c => c.type === 'HEADER');
+          if (headerComp) {
+            if (headerComp.format === 'IMAGE') {
+              const fallbackUrl = 'https://erp-total-english.vercel.app/logo.png';
+              const imgUrl = campana.imagen_url ? campana.imagen_url : fallbackUrl;
+              const finalImageUrl = imgUrl.startsWith('http') ? imgUrl : `${baseUrl}${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`;
+              payload.template.components.push({
+                type: "header",
+                parameters: [{ type: "image", image: { link: finalImageUrl } }]
+              });
+            } else if (headerComp.format === 'DOCUMENT') {
+              // Si acaso tuviera documento
+              payload.template.components.push({
+                type: "header",
+                parameters: [{ type: "document", document: { link: 'https://erp-total-english.vercel.app/dummy.pdf' } }]
+              });
+            } else if (headerComp.format === 'VIDEO') {
+              payload.template.components.push({
+                type: "header",
+                parameters: [{ type: "video", video: { link: 'https://erp-total-english.vercel.app/dummy.mp4' } }]
+              });
+            }
+          }
+        } else {
+          // Fallback heredado
+          if (campana.imagen_url && campana.imagen_url.trim() !== '') {
+            const isUrlExterna = campana.imagen_url.startsWith('http');
+            const finalImageUrl = isUrlExterna ? campana.imagen_url : `${baseUrl}${campana.imagen_url.startsWith('/') ? '' : '/'}${campana.imagen_url}`;
+            payload.template.components.push({
+              type: "header",
+              parameters: [{ type: "image", image: { link: finalImageUrl } }]
+            });
+          }
         }
       }
 
