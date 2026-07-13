@@ -75,7 +75,7 @@ export default function PaginaCampanas() {
         ...audienciasGuardadas.map(a => ({ valor: a.id, etiqueta: `📍 ${a.nombre} (${a.total_estimado} pers.)` }))
       ]
     },
-    { nombre: 'imagen_url', etiqueta: 'URL de Imagen (Si la plantilla lo requiere)', tipo: 'url', placeholder: 'https://...', requerido: false },
+    { nombre: 'imagen_url', etiqueta: 'Imagen de la campaña (URL o archivo)', tipo: 'image_upload', placeholder: 'https://...', requerido: false },
     { nombre: 'mensaje', etiqueta: 'Notas Internas', tipo: 'textarea', placeholder: 'Notas sobre esta campaña...', requerido: false },
     {
       nombre: 'estado', etiqueta: 'Estado', tipo: 'select', requerido: false,
