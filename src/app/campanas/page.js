@@ -16,6 +16,8 @@ export default function PaginaCampanas() {
   const [tabActivo, setTabActivo] = useState('campanas') // 'general', 'plantillas', 'campanas', 'audiencias'
   const [modoConstructor, setModoConstructor] = useState(false) // Para la vista de creación de audiencia
   const [mostrarConstructorPlantilla, setMostrarConstructorPlantilla] = useState(false)
+  const [modalLanzar, setModalLanzar] = useState(null) // { ids: [], campanaId: '' }
+  const [resultadoLanzar, setResultadoLanzar] = useState(null) // { ok, msg }
 
   // Estados para Audiencias
   const [prospectosAud, setProspectosAud] = useState([])
@@ -272,43 +274,34 @@ export default function PaginaCampanas() {
     }
   }
 
-  const dispararCampanaDinamica = async () => {
+  const dispararCampanaDinamica = () => {
     const ids = prospectosSeleccionados.length > 0 ? prospectosSeleccionados : null;
     if (!ids || ids.length === 0) return alert('No hay prospectos seleccionados. Marca al menos uno usando los checkboxes.');
+    setResultadoLanzar(null)
+    setModalLanzar({ ids, campanaId: campanas[0]?.id || '' })
+  }
 
-    const promptText = campanas.map(c => `- ${c.nombre}`).join('\n');
-    const idCampaña = prompt(`Ingresa el NOMBRE EXACTO de la Campaña (plantilla) que deseas disparar a esta audiencia filtrada:\n\nCampañas disponibles:\n${promptText}`);
-    
-    if (!idCampaña) return;
-    
-    const campanaRef = campanas.find(c => c.nombre.toLowerCase().trim() === idCampaña.toLowerCase().trim());
-    if (!campanaRef) return alert('❌ No se encontró ninguna campaña con ese nombre exacto.');
-
-    if (campanaRef.estado === 'completada') {
-       if (!confirm(`⚠️ La campaña "${campanaRef.nombre}" ya está marcada como 'completada'. ¿Deseas dispararla de nuevo de todos modos?`)) return;
-    }
-
-    if (!confirm(`⚠️ Estás a punto de disparar la campaña "${campanaRef.nombre}" a ${ids.length} persona(s) seleccionada(s).\n\n¿Deseas continuar?`)) return;
-
+  const ejecutarLanzamiento = async () => {
+    if (!modalLanzar?.campanaId) return
+    const campanaRef = campanas.find(c => c.id === modalLanzar.campanaId)
+    if (!campanaRef) return
     setEnviando(campanaRef.id)
     try {
       const respuesta = await fetch('/api/campanas/ejecutar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: campanaRef.id, prospectos_ids: ids })
+        body: JSON.stringify({ id: campanaRef.id, prospectos_ids: modalLanzar.ids })
       })
-      
       const resData = await respuesta.json()
-      
       if (respuesta.ok) {
-        alert(`✅ ¡Campaña de Audiencia Dinámica Disparada!\nPersonas Procesadas: ${resData.alcance_esperado}\nMensajes Oficiales Enviados: ${resData.envios_exitosos}`)
+        setResultadoLanzar({ ok: true, msg: `✅ ¡Listo! Se procesaron ${resData.alcance_esperado} persona(s) y se enviaron ${resData.envios_exitosos} mensaje(s).` })
         setProspectosSeleccionados([])
         cargarCampanas()
       } else {
-        alert('❌ Error al disparar: ' + (resData.error || 'Error desconocido'))
+        setResultadoLanzar({ ok: false, msg: '❌ Error: ' + (resData.error || 'Error desconocido') })
       }
     } catch (e) {
-      alert('❌ Error de conexión al disparar campaña dinámica: ' + e.message)
+      setResultadoLanzar({ ok: false, msg: '❌ Error de conexión: ' + e.message })
     } finally {
       setEnviando(null)
     }
@@ -989,6 +982,104 @@ export default function PaginaCampanas() {
           onClose={() => setMostrarConstructorPlantilla(false)}
           onCreated={() => { cargarPlantillasMeta(); setMostrarConstructorPlantilla(false) }}
         />
+      )}
+
+      {/* Modal: Lanzar Campaña Dinámica */}
+      {modalLanzar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-[#00236f] px-8 py-6">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-white text-3xl">rocket_launch</span>
+                <div>
+                  <h2 className="text-white text-lg font-black">Lanzar Campaña</h2>
+                  <p className="text-blue-200 text-sm">{modalLanzar.ids.length} persona(s) seleccionada(s)</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-6">
+              {/* Selector de campaña */}
+              {!resultadoLanzar ? (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-bold text-slate-700">Selecciona la campaña a enviar</label>
+                    <p className="text-xs text-slate-400">Solo se enviará a las personas que seleccionaste con los checkboxes.</p>
+                    <select
+                      className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-blue-200 font-semibold mt-1"
+                      value={modalLanzar.campanaId}
+                      onChange={e => setModalLanzar({ ...modalLanzar, campanaId: e.target.value })}
+                    >
+                      <option value="">— Elige una campaña —</option>
+                      {campanas.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre} {c.nombre_plantilla ? `(${c.nombre_plantilla})` : ''} · {c.estado}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Resumen de la campaña seleccionada */}
+                  {modalLanzar.campanaId && (() => {
+                    const c = campanas.find(x => x.id === modalLanzar.campanaId)
+                    if (!c) return null
+                    return (
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm space-y-1.5">
+                        <p className="font-bold text-slate-700 text-base">{c.nombre}</p>
+                        {c.nombre_plantilla && <p className="text-slate-500">📋 Plantilla: <span className="font-mono text-slate-700">{c.nombre_plantilla}</span></p>}
+                        {c.canal && <p className="text-slate-500">📡 Canal: <span className="font-semibold text-slate-700 capitalize">{c.canal}</span></p>}
+                        {c.estado === 'completada' && (
+                          <p className="text-amber-600 font-semibold text-xs bg-amber-50 px-3 py-1.5 rounded-lg mt-2">⚠️ Esta campaña ya está marcada como completada</p>
+                        )}
+                      </div>
+                    )
+                  })()}
+
+                  {/* Botones */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setModalLanzar(null)}
+                      className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={ejecutarLanzamiento}
+                      disabled={!modalLanzar.campanaId || !!enviando}
+                      className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${!modalLanzar.campanaId || enviando ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'}`}
+                    >
+                      {enviando ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[18px]">send</span>
+                          Confirmar envío
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Resultado */
+                <div className="text-center space-y-4 py-4">
+                  <p className={`text-base font-semibold leading-relaxed ${resultadoLanzar.ok ? 'text-green-700' : 'text-red-600'}`}>
+                    {resultadoLanzar.msg}
+                  </p>
+                  <button
+                    onClick={() => setModalLanzar(null)}
+                    className="mt-2 px-8 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div >
   )
