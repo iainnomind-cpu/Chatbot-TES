@@ -68,15 +68,20 @@ export default function PaginaCampanas() {
       ],
       requerido: false
     },
+    {
+      nombre: 'audiencia_id', etiqueta: 'Audiencia Guardada (Segmento)', tipo: 'select', requerido: false,
+      opciones: [
+        { valor: '', etiqueta: 'Sin segmento — usar Audiencias Dinámicas' },
+        ...audienciasGuardadas.map(a => ({ valor: a.id, etiqueta: `📍 ${a.nombre} (${a.total_estimado} pers.)` }))
+      ]
+    },
     { nombre: 'mensaje', etiqueta: 'Notas Internas', tipo: 'textarea', placeholder: 'Notas sobre esta campaña...', requerido: false },
     {
-      nombre: 'estado', etiqueta: 'Estado de la Campaña', tipo: 'select', requerido: false,
+      nombre: 'estado', etiqueta: 'Estado', tipo: 'select', requerido: false,
       opciones: [
-        { valor: 'borrador', etiqueta: 'Borrador (Edición)' },
-        { valor: 'pendiente', etiqueta: 'Enviar a Revisión' },
-        { valor: 'aprobada', etiqueta: 'Aprobada (Lista para lanzar)' },
-        { valor: 'activa', etiqueta: 'Activa (En curso)' },
-        { valor: 'completada', etiqueta: 'Completada' },
+        { valor: 'borrador', etiqueta: '📝 Borrador' },
+        { valor: 'activa', etiqueta: '✅ Activa' },
+        { valor: 'completada', etiqueta: '🏁 Completada' },
       ]
     },
   ]
@@ -950,13 +955,10 @@ export default function PaginaCampanas() {
           nombre: campanaEditando.nombre,
           nombre_plantilla: campanaEditando.nombre_plantilla,
           mensaje: campanaEditando.mensaje,
-          publico_estado: campanaEditando.publico_estado,
-          publico_curso: campanaEditando.publico_curso,
           audiencia_id: campanaEditando.audiencia_id,
           canal: campanaEditando.canal,
           estado: campanaEditando.estado,
-          imagen_url: campanaEditando.imagen_url,
-        } : { estado: 'borrador' }}
+        } : { estado: 'activa' }}
       />
 
       {mostrarConstructorPlantilla && (
