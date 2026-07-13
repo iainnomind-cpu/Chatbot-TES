@@ -79,6 +79,7 @@ export default function PaginaInbox() {
   const cargarConversacionesRef = useRef(null)
   const textareaRef = useRef(null)
   const scrollRef = useRef(null)
+  const inicializadoRef = useRef(false)
 
   useEffect(() => {
     chatActivoRef.current = chatActivo
@@ -139,10 +140,11 @@ export default function PaginaInbox() {
           cambiarChat(conv)
           // Limpiar la url sin recargar
           window.history.replaceState(null, '', '/inbox')
+          inicializadoRef.current = true
           return
         }
       }
-      if (!chatActivoRef.current && data.length > 0) {
+      if (!inicializadoRef.current && !chatActivoRef.current && data.length > 0) {
         setChatActivo(data[0])
         cargarMensajes(data[0].id)
         cargarProspectosRelacionados(data[0].id_plataforma)
@@ -150,6 +152,7 @@ export default function PaginaInbox() {
         const up = data.find(c => c.id === chatActivoRef.current.id)
         if (up) setChatActivo(up)
       }
+      inicializadoRef.current = true
     }
     setCargando(false)
   }, [cargarMensajes, cargarProspectosRelacionados])
