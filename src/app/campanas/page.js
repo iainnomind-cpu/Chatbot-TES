@@ -55,38 +55,20 @@ export default function PaginaCampanas() {
     },
     {
       nombre: 'nombre_plantilla',
-      etiqueta: 'Plantilla de Meta (Solo para WhatsApp)',
-      tipo: 'datalist',
-      placeholder: 'Escribe el nombre exacto o selecciona una existente...',
-      opciones: plantillasSugeridas,
+      etiqueta: 'Plantilla de WhatsApp (Meta)',
+      tipo: 'select',
+      placeholder: '— Selecciona una plantilla aprobada —',
+      opciones: [
+        ...plantillasMeta
+          .filter(p => p.status === 'APPROVED')
+          .map(p => ({ valor: p.name, etiqueta: `✓ ${p.name}` })),
+        ...plantillasMeta
+          .filter(p => p.status !== 'APPROVED')
+          .map(p => ({ valor: p.name, etiqueta: `⏳ ${p.name} (${p.status})` })),
+      ],
       requerido: false
     },
     { nombre: 'mensaje', etiqueta: 'Notas Internas', tipo: 'textarea', placeholder: 'Notas sobre esta campaña...', requerido: false },
-    {
-      nombre: 'audiencia_id', etiqueta: 'Audiencia Previa (Segmento)', tipo: 'select', requerido: false,
-      opciones: [
-        { valor: '', etiqueta: 'Usar filtros básicos de abajo o manual' },
-        ...audienciasGuardadas.map(a => ({ valor: a.id, etiqueta: `${a.nombre} (${a.total_estimado} pers.)` }))
-      ]
-    },
-    {
-      nombre: 'publico_estado', etiqueta: 'Público (Estado de Lead)', tipo: 'select', requerido: false,
-      opciones: [
-        { valor: 'Todos', etiqueta: 'Todos los Prospectos' },
-        { valor: 'nuevo', etiqueta: 'Nuevos' },
-        { valor: 'contactado', etiqueta: 'Contactados' },
-        { valor: 'en_proceso', etiqueta: 'En Proceso' },
-        { valor: 'agendado', etiqueta: 'Agendados (Cita Pendiente)' },
-        { valor: 'inscrito', etiqueta: 'Inscritos (Cierre Ganado)' },
-      ]
-    },
-    {
-      nombre: 'publico_curso', etiqueta: 'Público (Diplomado Seleccionado)', tipo: 'select', requerido: false,
-      opciones: [
-        { valor: 'Todos', etiqueta: 'Todos los Diplomados' },
-        ...cursosDisponibles.map(c => ({ valor: c.nombre, etiqueta: c.nombre }))
-      ]
-    },
     {
       nombre: 'estado', etiqueta: 'Estado de la Campaña', tipo: 'select', requerido: false,
       opciones: [
@@ -97,7 +79,6 @@ export default function PaginaCampanas() {
         { valor: 'completada', etiqueta: 'Completada' },
       ]
     },
-    { nombre: 'imagen_url', etiqueta: 'URL de imagen (Opcional)', tipo: 'url', placeholder: 'https://...', requerido: false },
   ]
 
   const cargarCampanas = async () => {
