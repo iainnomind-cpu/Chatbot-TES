@@ -278,13 +278,14 @@ export default function PaginaCampanas() {
     const ids = prospectosSeleccionados.length > 0 ? prospectosSeleccionados : null;
     if (!ids || ids.length === 0) return alert('No hay prospectos seleccionados. Marca al menos uno usando los checkboxes.');
     setResultadoLanzar(null)
-    setModalLanzar({ ids, campanaId: campanas[0]?.id || '' })
+    setModalLanzar({ ids, plantillaNombre: '' })
   }
 
   const ejecutarLanzamiento = async () => {
-    if (!modalLanzar?.campanaId) return
-    const campanaRef = campanas.find(c => c.id === modalLanzar.campanaId)
-    if (!campanaRef) return
+    if (!modalLanzar?.plantillaNombre) return
+    // Buscar la campaña que usa esta plantilla
+    const campanaRef = campanas.find(c => c.nombre_plantilla === modalLanzar.plantillaNombre)
+    if (!campanaRef) return setResultadoLanzar({ ok: false, msg: '❌ No existe ninguna campaña configurada con esa plantilla. Crea una en la pestaña Campañas.' })
     setEnviando(campanaRef.id)
     try {
       const respuesta = await fetch('/api/campanas/ejecutar', {
@@ -987,54 +988,76 @@ export default function PaginaCampanas() {
       {/* Modal: Lanzar Campaña Dinámica */}
       {modalLanzar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-[#00236f] px-8 py-6">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-white text-3xl">rocket_launch</span>
-                <div>
-                  <h2 className="text-white text-lg font-black">Lanzar Campaña</h2>
-                  <p className="text-blue-200 text-sm">{modalLanzar.ids.length} persona(s) seleccionada(s)</p>
+            <div className="bg-gradient-to-r from-blue-600 to-[#00236f] px-8 py-6 shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-white text-3xl">rocket_launch</span>
+                  <div>
+                    <h2 className="text-white text-lg font-black">Elegir Plantilla y Enviar</h2>
+                    <p className="text-blue-200 text-sm">{modalLanzar.ids.length} persona(s) seleccionada(s)</p>
+                  </div>
                 </div>
+                <button onClick={() => setModalLanzar(null)} className="text-white/60 hover:text-white transition-colors">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
               </div>
             </div>
 
-            <div className="p-8 space-y-6">
-              {/* Selector de campaña */}
+            <div className="p-6 overflow-y-auto flex-1">
               {!resultadoLanzar ? (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-bold text-slate-700">Selecciona la campaña a enviar</label>
-                    <p className="text-xs text-slate-400">Solo se enviará a las personas que seleccionaste con los checkboxes.</p>
-                    <select
-                      className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-blue-200 font-semibold mt-1"
-                      value={modalLanzar.campanaId}
-                      onChange={e => setModalLanzar({ ...modalLanzar, campanaId: e.target.value })}
-                    >
-                      <option value="">— Elige una campaña —</option>
-                      {campanas.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre} {c.nombre_plantilla ? `(${c.nombre_plantilla})` : ''} · {c.estado}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-500">Elige la plantilla aprobada de WhatsApp que quieres enviar a las <strong>{modalLanzar.ids.length}</strong> personas seleccionadas:</p>
 
-                  {/* Resumen de la campaña seleccionada */}
-                  {modalLanzar.campanaId && (() => {
-                    const c = campanas.find(x => x.id === modalLanzar.campanaId)
-                    if (!c) return null
-                    return (
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm space-y-1.5">
-                        <p className="font-bold text-slate-700 text-base">{c.nombre}</p>
-                        {c.nombre_plantilla && <p className="text-slate-500">📋 Plantilla: <span className="font-mono text-slate-700">{c.nombre_plantilla}</span></p>}
-                        {c.canal && <p className="text-slate-500">📡 Canal: <span className="font-semibold text-slate-700 capitalize">{c.canal}</span></p>}
-                        {c.estado === 'completada' && (
-                          <p className="text-amber-600 font-semibold text-xs bg-amber-50 px-3 py-1.5 rounded-lg mt-2">⚠️ Esta campaña ya está marcada como completada</p>
-                        )}
-                      </div>
-                    )
-                  })()}
+                  {/* Plantillas aprobadas como tarjetas */}
+                  {plantillasMeta.filter(p => p.status === 'APPROVED').length === 0 ? (
+                    <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-sm">
+                      <span className="material-symbols-outlined text-3xl mb-2">speaker_notes_off</span>
+                      <p className="font-semibold">No tienes plantillas aprobadas por Meta.</p>
+                      <p className="text-xs mt-1">Ve a la pestaña <strong>Plantillas</strong> para crearlas.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {plantillasMeta.filter(p => p.status === 'APPROVED').map(plt => {
+                        const body = plt.components?.find(c => c.type === 'BODY')
+                        const header = plt.components?.find(c => c.type === 'HEADER')
+                        const seleccionada = modalLanzar.plantillaNombre === plt.name
+                        const tieneCampana = campanas.some(c => c.nombre_plantilla === plt.name)
+                        return (
+                          <button
+                            key={plt.id}
+                            onClick={() => setModalLanzar({ ...modalLanzar, plantillaNombre: plt.name })}
+                            className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                              seleccionada
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-slate-800 text-sm truncate">{plt.name}</p>
+                                {header?.format === 'IMAGE' && (
+                                  <span className="text-xs text-slate-400">🖼️ Con imagen</span>
+                                )}
+                                {body && (
+                                  <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">{body.text}</p>
+                                )}
+                                {!tieneCampana && (
+                                  <p className="text-[10px] text-amber-600 font-semibold mt-1">⚠️ Sin campaña CRM vinculada</p>
+                                )}
+                              </div>
+                              <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${
+                                seleccionada ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
+                              }`}>
+                                {seleccionada && <span className="text-white text-[10px] font-black">✓</span>}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
 
                   {/* Botones */}
                   <div className="flex gap-3 pt-2">
@@ -1046,8 +1069,12 @@ export default function PaginaCampanas() {
                     </button>
                     <button
                       onClick={ejecutarLanzamiento}
-                      disabled={!modalLanzar.campanaId || !!enviando}
-                      className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${!modalLanzar.campanaId || enviando ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'}`}
+                      disabled={!modalLanzar.plantillaNombre || !!enviando}
+                      className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                        !modalLanzar.plantillaNombre || enviando
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
+                      }`}
                     >
                       {enviando ? (
                         <>
@@ -1057,15 +1084,15 @@ export default function PaginaCampanas() {
                       ) : (
                         <>
                           <span className="material-symbols-outlined text-[18px]">send</span>
-                          Confirmar envío
+                          Enviar a {modalLanzar.ids.length} persona(s)
                         </>
                       )}
                     </button>
                   </div>
-                </>
+                </div>
               ) : (
                 /* Resultado */
-                <div className="text-center space-y-4 py-4">
+                <div className="text-center space-y-4 py-6">
                   <p className={`text-base font-semibold leading-relaxed ${resultadoLanzar.ok ? 'text-green-700' : 'text-red-600'}`}>
                     {resultadoLanzar.msg}
                   </p>
