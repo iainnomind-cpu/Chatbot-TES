@@ -127,7 +127,10 @@ export default function ModalFormulario({ abierto, alCerrar, titulo, campos, alE
                   value={datosFormulario[campo.nombre] || ''}
                   onChange={(e) => manejarCambio(campo.nombre, e.target.value)}
                 >
-                  <option value="">{campo.placeholder || 'Seleccionar...'}</option>
+                  {/* Solo muestra opción vacía si no es requerido o aún no hay valor */}
+                  {(!campo.requerido || !datosFormulario[campo.nombre]) && (
+                    <option value="">{campo.placeholder || '— Seleccionar —'}</option>
+                  )}
                   {campo.opciones?.map((opcion) => (
                     <option key={opcion.valor} value={opcion.valor}>
                       {opcion.etiqueta}
