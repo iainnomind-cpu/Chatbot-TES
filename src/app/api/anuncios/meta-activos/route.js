@@ -79,7 +79,7 @@ export async function GET() {
       }, { status: 200 })
     }
     return NextResponse.json({
-      error: error.message,
+      error: errMeta ? `Meta API Error: ${errMeta.message}` : error.message,
       detalle: errMeta,
       anuncios: []
     }, { status: 200 })
