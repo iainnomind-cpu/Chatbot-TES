@@ -19,8 +19,8 @@ export async function GET() {
     }
 
     // Si tienen META_ADS_ACCOUNT_ID lo usamos directamente
-    // Si no, intentamos buscarlo a partir del businessId
-    let adAccount = adAccountId
+    // Nos aseguramos de que tenga el prefijo 'act_' que exige Meta
+    let adAccount = adAccountId ? (adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`) : null
 
     if (!adAccount && businessId) {
       // Buscar la cuenta de anuncios vinculada al Business Manager
