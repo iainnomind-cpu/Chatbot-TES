@@ -34,6 +34,14 @@ export default function PaginaCampanas() {
   })
   const [prospectosSeleccionados, setProspectosSeleccionados] = useState([])
 
+  // Estados para Anuncios CTWA
+  const [anuncios, setAnuncios] = useState([])
+  const [anunciosMetaActivos, setAnunciosMetaActivos] = useState([])
+  const [cargandoAnunciosMeta, setCargandoAnunciosMeta] = useState(false)
+  const [errorAnunciosMeta, setErrorAnunciosMeta] = useState('')
+  const [modalAnuncio, setModalAnuncio] = useState(false)
+  const [anuncioEditando, setAnuncioEditando] = useState(null)
+
   // 1. Obtener plantillas únicas ya utilizadas en el CRM
   const plantillasDelProyecto = [...new Set(campanas.map(c => c.nombre_plantilla).filter(Boolean))]
 
@@ -153,6 +161,18 @@ export default function PaginaCampanas() {
       }
     }
     cargarAudiencias()
+
+    // Cargar anuncios CTWA configurados
+    const cargarAnuncios = async () => {
+      try {
+        const resp = await fetch('/api/anuncios')
+        const datos = await resp.json()
+        setAnuncios(Array.isArray(datos) ? datos : [])
+      } catch (e) {
+        console.error('Error cargando anuncios', e)
+      }
+    }
+    cargarAnuncios()
   }, [])
 
   // Calculo dinamico de audiencia en tiempo real
@@ -432,6 +452,15 @@ export default function PaginaCampanas() {
             <span className="material-symbols-outlined text-[20px]">group_add</span>
             Audiencias Dinámicas
             {tabActivo === 'audiencias' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>}
+          </button>
+
+          <button 
+            className={`px-6 py-4 text-sm font-semibold flex items-center gap-2 transition-colors relative ${tabActivo === 'anuncios' ? 'text-purple-600' : 'text-slate-500 hover:text-slate-800'}`}
+            onClick={() => setTabActivo('anuncios')}
+          >
+            <span className="material-symbols-outlined text-[20px]">campaign</span>
+            Anuncios CTWA ({anuncios.length})
+            {tabActivo === 'anuncios' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600"></div>}
           </button>
         </div>
 
@@ -945,6 +974,223 @@ export default function PaginaCampanas() {
         </div>
       </div>
 
+      {/* TAB: ANUNCIOS CTWA */}
+      {tabActivo === 'anuncios' && (
+        <div className="animate-fade-in space-y-6 p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <span className="material-symbols-outlined text-purple-600">campaign</span>
+                Anuncios Click-to-WhatsApp (CTWA)
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">Cuando alguien toca tu anuncio de Facebook/Instagram y escribe por WhatsApp, el bot ya sabe de qué anuncio viene y responde directo.</p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={async () => {
+                  setCargandoAnunciosMeta(true); setErrorAnunciosMeta('');
+                  try {
+                    const r = await fetch('/api/anuncios/meta-activos');
+                    const d = await r.json();
+                    if (d.error) setErrorAnunciosMeta(d.error);
+                    else setAnunciosMetaActivos(d.anuncios || []);
+                  } catch(e) { setErrorAnunciosMeta(e.message); }
+                  finally { setCargandoAnunciosMeta(false); }
+                }}
+                disabled={cargandoAnunciosMeta}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <span className={`material-symbols-outlined text-sm ${cargandoAnunciosMeta ? 'animate-spin' : ''}`}>refresh</span>
+                {cargandoAnunciosMeta ? 'Cargando...' : 'Cargar Anuncios de Meta'}
+              </button>
+              <button
+                onClick={() => { setAnuncioEditando(null); setModalAnuncio(true); }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-lg flex items-center gap-2 transition-colors shadow-sm shadow-purple-500/30"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                Configurar Anuncio
+              </button>
+            </div>
+          </div>
+
+          {/* Anuncios de Meta activos */}
+          {anunciosMetaActivos.length > 0 && (
+            <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5">
+              <h3 className="text-sm font-bold text-purple-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">ads_click</span>
+                Anuncios Activos en tu Cuenta de Meta ({anunciosMetaActivos.length})
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {anunciosMetaActivos.map(ad => {
+                  const yaConfigurado = anuncios.some(a => a.meta_ad_id === ad.id);
+                  return (
+                    <div key={ad.id} className={`bg-white rounded-xl p-4 border flex justify-between items-start gap-3 ${yaConfigurado ? 'border-green-200' : 'border-purple-100'}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 text-sm truncate">{ad.nombre}</p>
+                        {ad.titulo_creativo && <p className="text-xs text-slate-500 mt-0.5 truncate">{ad.titulo_creativo}</p>}
+                        <p className="text-[10px] font-mono text-slate-400 mt-1">ID: {ad.id}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${yaConfigurado ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {yaConfigurado ? '✓ Configurado' : 'Sin configurar'}
+                        </span>
+                        {!yaConfigurado && (
+                          <button
+                            onClick={() => { setAnuncioEditando({ meta_ad_id: ad.id, nombre: ad.nombre, palabras_clave: ad.titulo_creativo ? [ad.titulo_creativo.toLowerCase().substring(0,20)] : [] }); setModalAnuncio(true); }}
+                            className="text-[11px] font-bold text-purple-600 hover:text-purple-800 underline"
+                          >
+                            Configurar Bot
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {errorAnunciosMeta && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <strong>⚠️ {errorAnunciosMeta}</strong>
+              {errorAnunciosMeta.includes('ads_read') && (
+                <p className="mt-2 text-xs">Solución: En Meta for Developers → tu app → Permisos → agrega <code className="bg-amber-100 px-1 rounded">ads_read</code>. O agrega <code className="bg-amber-100 px-1 rounded">META_ADS_ACCOUNT_ID=act_XXXXXXX</code> en tus variables de entorno de Vercel.</p>
+              )}
+            </div>
+          )}
+
+          {/* Anuncios configurados en el ERP */}
+          {anuncios.length === 0 ? (
+            <div className="text-center py-16 bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-400">
+              <span className="material-symbols-outlined text-5xl mb-3">ads_click</span>
+              <p className="font-bold">Aún no tienes anuncios configurados.</p>
+              <p className="text-sm mt-1">Carga tus anuncios de Meta y configura qué debe hacer el bot cuando alguien llega de ese anuncio.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {anuncios.map(an => (
+                <div key={an.id} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-purple-300 hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-bold text-slate-800">{an.nombre}</h3>
+                      {an.meta_ad_id && <p className="text-[11px] font-mono text-purple-600 mt-0.5">Meta ID: {an.meta_ad_id}</p>}
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => { setAnuncioEditando(an); setModalAnuncio(true); }} className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                      </button>
+                      <button onClick={async () => {
+                        if (!confirm('¿Eliminar este anuncio?')) return;
+                        await fetch(`/api/anuncios?id=${an.id}`, { method: 'DELETE' });
+                        setAnuncios(anuncios.filter(a => a.id !== an.id));
+                      }} className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-emerald-500">school</span>
+                      <span className="text-slate-600">Curso: <strong>{an.curso_relacionado || 'No especificado'}</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-blue-500">skip_next</span>
+                      <span className="text-slate-600">Omitir onboarding: <strong>{an.saltar_onboarding ? '✅ Sí' : '❌ No'}</strong></span>
+                    </div>
+                    {an.palabras_clave?.length > 0 && (
+                      <div className="flex items-start gap-2 flex-wrap mt-2">
+                        {an.palabras_clave.map((c, i) => (
+                          <span key={i} className="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-medium border border-purple-100">{c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal: Configurar Anuncio CTWA */}
+      {modalAnuncio && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setModalAnuncio(false); setAnuncioEditando(null); }}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h2 className="text-xl font-bold text-purple-900 flex items-center gap-2">
+                <span className="material-symbols-outlined">ads_click</span>
+                {anuncioEditando?.id ? 'Editar Anuncio' : 'Configurar Anuncio CTWA'}
+              </h2>
+              <button onClick={() => { setModalAnuncio(false); setAnuncioEditando(null); }} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors">
+                <span className="material-symbols-outlined text-slate-400">close</span>
+              </button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.target);
+                const payload = {
+                nombre: fd.get('nombre'),
+                meta_ad_id: fd.get('meta_ad_id') || null,
+                palabras_clave: fd.get('palabras_clave') ? fd.get('palabras_clave').split(',').map(s=>s.trim()).filter(Boolean) : [],
+                curso_relacionado: fd.get('curso_relacionado') || null,
+                saltar_onboarding: fd.get('saltar_onboarding') === 'on',
+              };
+              if (anuncioEditando?.id) payload.id = anuncioEditando.id;
+              const resp = await fetch('/api/anuncios', {
+                method: anuncioEditando?.id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (resp.ok) {
+                const updated = await resp.json();
+                if (anuncioEditando?.id) setAnuncios(anuncios.map(a => a.id === updated.id ? updated : a));
+                else setAnuncios([updated, ...anuncios]);
+                setModalAnuncio(false); setAnuncioEditando(null);
+              } else {
+                const err = await resp.json();
+                alert('Error: ' + err.error);
+              }
+            }} className="p-6 space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">Nombre interno del anuncio *</label>
+                <input name="nombre" required defaultValue={anuncioEditando?.nombre || ''} placeholder="Ej: Anuncio Summer Quest Julio" className="w-full rounded-xl border-slate-200 focus:border-purple-500 focus:ring-purple-500 text-sm p-3 border" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">ID del Anuncio en Meta</label>
+                <input name="meta_ad_id" defaultValue={anuncioEditando?.meta_ad_id || ''} placeholder="Ej: 120213XXXXXXXXX (de Meta Ads Manager)" className="w-full rounded-xl border-slate-200 focus:border-purple-500 focus:ring-purple-500 text-sm p-3 border font-mono" />
+                <p className="text-[11px] text-slate-400">Si cargaste anuncios de Meta, ya viene prellenado.</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">Curso Relacionado</label>
+                <select name="curso_relacionado" defaultValue={anuncioEditando?.curso_relacionado || ''} className="w-full rounded-xl border-slate-200 focus:border-purple-500 focus:ring-purple-500 text-sm p-3 border">
+                  <option value="">— Seleccionar curso —</option>
+                  {cursosDisponibles.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                </select>
+                <p className="text-[11px] text-slate-400">El bot usará la info de este curso para responder directamente sin hacer onboarding.</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">Palabras Clave (fallback)</label>
+                <input name="palabras_clave" defaultValue={anuncioEditando?.palabras_clave?.join(', ') || ''} placeholder="summer quest, inglés verano, cursos julio" className="w-full rounded-xl border-slate-200 focus:border-purple-500 focus:ring-purple-500 text-sm p-3 border" />
+                <p className="text-[11px] text-slate-400">Separadas por coma. Se usan si el ID de Meta no coincide exacto.</p>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <input type="checkbox" name="saltar_onboarding" id="saltar_onboarding" defaultChecked={anuncioEditando?.saltar_onboarding !== false} className="w-4 h-4 accent-purple-600" />
+                <label htmlFor="saltar_onboarding" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  <strong>Omitir onboarding</strong> — El bot responde directo con info del curso sin preguntar edad, para quién es, etc.
+                </label>
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => { setModalAnuncio(false); setAnuncioEditando(null); }} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                <button type="submit" className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-purple-900/20 hover:opacity-90 transition-all">
+                  {anuncioEditando?.id ? 'Guardar Cambios' : 'Configurar Anuncio'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <ModalFormulario
         abierto={modalAbierto}
         alCerrar={cerrarModal}
@@ -962,6 +1208,7 @@ export default function PaginaCampanas() {
           imagen_url: campanaEditando.imagen_url,
         } : { estado: 'activa' }}
       />
+
 
       {mostrarConstructorPlantilla && (
         <ConstructorPlantilla

@@ -75,6 +75,7 @@ export async function POST(solicitud) {
     let texto = "";
     let nombrePerfil = "Prospecto";
     let vieneDeAnuncio = false;
+    let referralData = null; // { source_id, headline, body, source_type }
     let receptorOriginal = "me";
     let esEchoDeHumano = false;
 
@@ -95,7 +96,16 @@ export async function POST(solicitud) {
 
         nombrePerfil = valor.contacts?.[0]?.profile?.name || "Prospecto";
         mensajeId = msj.id;
-        vieneDeAnuncio = !!msj.referral;
+        if (msj.referral) {
+          vieneDeAnuncio = true;
+          referralData = {
+            source_id: msj.referral.source_id || null,
+            headline: msj.referral.headline || '',
+            body: msj.referral.body || '',
+            source_type: msj.referral.source_type || 'ad',
+          };
+          console.log('📢 [CTWA] Referral detectado:', JSON.stringify(referralData));
+        }
 
         if (msj.type === "text") {
           texto = msj.text?.body || "";
@@ -497,6 +507,63 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         tieneCitaPendiente = true;
     }
 
+    // === CTWA: DETECCIÓN DE ANUNCIO ===
+    let anuncioDetectado = null;
+    let anuncioContexto = '';
+
+    if (referralData) {
+      // 1. Buscar por source_id exacto
+      let { data: anuncioExacto } = await supabase
+        .from('anuncios')
+        .select('*')
+        .eq('meta_ad_id', referralData.source_id)
+        .maybeSingle();
+
+      if (anuncioExacto) {
+        anuncioDetectado = anuncioExacto;
+      } else if (referralData.headline || referralData.body) {
+        // 2. Fallback: buscar por palabras clave contra headline/body
+        const { data: todosAnuncios } = await supabase.from('anuncios').select('*');
+        const textoAnuncio = `${referralData.headline} ${referralData.body}`.toLowerCase();
+        for (const a of (todosAnuncios || [])) {
+          const claves = a.palabras_clave || [];
+          if (claves.some(c => textoAnuncio.includes(c.toLowerCase()))) {
+            anuncioDetectado = a;
+            break;
+          }
+        }
+      }
+
+      // 3. Guardar anuncio_id en la conversación si lo detectamos
+      if (anuncioDetectado) {
+        console.log(`🎯 [CTWA] Anuncio detectado: "${anuncioDetectado.nombre}" (${anuncioDetectado.id})`);
+        await supabase.from('conversaciones')
+          .update({ anuncio_id: anuncioDetectado.id })
+          .eq('id', convExist.id);
+
+        anuncioContexto = `
+🎯 USUARIO VIENE DE ANUNCIO DE META ADS: "${anuncioDetectado.nombre}"
+CURSO DE INTERÉS DETECTADO AUTOMÁTICAMENTE: ${anuncioDetectado.curso_relacionado || 'Sin especificar'}
+HEADLINE DEL ANUNCIO QUE VIO: "${referralData.headline}"
+
+${anuncioDetectado.saltar_onboarding ? `INSTRUCCIÓN CRÍTICA — SKIP ONBOARDING:
+- Este usuario YA vio el anuncio de "${anuncioDetectado.curso_relacionado || 'nuestro curso'}". Sabe de qué se trata.
+- NO hagas el perfilamiento completo de edad, nivel, horarios, para quién es.
+- NO preguntes "¿a quién va dirigido?" ni "¿qué edad tiene el alumno?" al inicio.
+- RESPONDE DIRECTO: saluda brevemente, menciona que viste que le interesó el "${anuncioDetectado.curso_relacionado || 'curso'}" del anuncio, y da los beneficios principales + precio.
+- Solo al final pregunta algo específico: "¿Para quién sería? ¿Niño, adulto? ¿Cuántos años tiene?" para personalizar la propuesta.
+- Tu primer mensaje debe sentirse como si ya conocieras por qué escriben.` : ''}
+`;
+      } else {
+        console.log(`📢 [CTWA] Referral sin anuncio configurado (source_id: ${referralData.source_id})`);
+        anuncioContexto = `
+📢 USUARIO VIENE DE UN ANUNCIO DE META ADS.
+ANUNCIO: "${referralData.headline || 'Sin título'}"
+NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con intención directa. Sé conciso y directo al responder.
+`;
+      }
+    }
+
     const contextoCrm = `CONTEXTO ACTUAL DEL PROSPECTO:
         Fecha de Hoy: ${fechaActualTexto}
         Nombre Alumno: ${freshPros.nombre_alumno || freshPros.nombre || "Desconocido"}
@@ -504,12 +571,14 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         Categoría: ${freshPros.categoria_edad || "Desconocida"}
         Nivel: ${freshPros.nivel || "Desconocido"}
         Horario: ${freshPros.horario || "Desconocido"}
-        Curso de Interés: ${freshPros.curso_interes || "Desconocido"}
+        Curso de Interés: ${anuncioDetectado?.curso_relacionado || freshPros.curso_interes || "Desconocido"}
         
         CITAS OCUPADAS (NO AGENDAR AQUÍ):
         ${listaCitas || "No hay citas agendadas aún."}
 
         IMPORTANTE: Si ya conoces estos datos, NO los preguntes de nuevo. Solo avanza al siguiente paso del flujo.
+        
+        ${anuncioContexto}
         
         ${huboIntervencionHumana ? resumenHandover : ""}
         
@@ -521,6 +590,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
         5. Tu primera respuesta tras una transición NUNCA debe ser el mensaje de bienvenida ni reiniciar el perfilamiento.
         
         ${tieneCitaPendiente ? "⚠️ ESTADO ACTUAL: EL PROSPECTO YA TIENE UNA CITA AGENDADA. NO LE OFREZCAS AGENDAR OTRA CITA. SI EL PROSPECTO AGRADECE O DICE OK, SOLO DESPÍDETE AMABLEMENTE Y CIERRA LA CONVERSACIÓN. NO REPITAS EL MENSAJE DE CONFIRMACIÓN DE CITA." : ""}`;
+
 
     // OBTENER CURSOS REALES DE LA BASE DE DATOS
     const { data: cursosDb } = await supabase.from("cursos").select("*");
