@@ -1135,6 +1135,7 @@ export default function PaginaCampanas() {
                 palabras_clave: fd.get('palabras_clave') ? fd.get('palabras_clave').split(',').map(s=>s.trim()).filter(Boolean) : [],
                 curso_relacionado: fd.get('curso_relacionado') || null,
                 saltar_onboarding: fd.get('saltar_onboarding') === 'on',
+                flujo_campana: fd.get('flujo_campana') || null,
               };
               if (anuncioEditando?.id) payload.id = anuncioEditando.id;
               const resp = await fetch('/api/anuncios', {
@@ -1174,10 +1175,18 @@ export default function PaginaCampanas() {
                 <input name="palabras_clave" defaultValue={anuncioEditando?.palabras_clave?.join(', ') || ''} placeholder="summer quest, inglés verano, cursos julio" className="w-full rounded-xl border-slate-200 focus:border-purple-500 focus:ring-purple-500 text-sm p-3 border" />
                 <p className="text-[11px] text-slate-400">Separadas por coma. Se usan si el ID de Meta no coincide exacto.</p>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">🤖 Tipo de Flujo del Bot</label>
+                <select name="flujo_campana" defaultValue={anuncioEditando?.flujo_campana || ''} className="w-full rounded-xl border-slate-200 focus:border-purple-500 focus:ring-purple-500 text-sm p-3 border">
+                  <option value="">Estándar — Recomendación de diplomado (flujo normal)</option>
+                  <option value="DIAGNOSTICO">⚡ Diagnóstico — Calificar rápido y pasar a asesor (4 preguntas)</option>
+                </select>
+                <p className="text-[11px] text-slate-400">El flujo "Diagnóstico" hace 4 preguntas con botones y transfiere al asesor sin dar precios ni recomendar diplomados.</p>
+              </div>
               <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
                 <input type="checkbox" name="saltar_onboarding" id="saltar_onboarding" defaultChecked={anuncioEditando?.saltar_onboarding !== false} className="w-4 h-4 accent-purple-600" />
                 <label htmlFor="saltar_onboarding" className="text-sm font-medium text-slate-700 cursor-pointer">
-                  <strong>Omitir onboarding</strong> — El bot responde directo con info del curso sin preguntar edad, para quién es, etc.
+                  <strong>Omitir onboarding estándar</strong> — El bot responde directo con info del curso (ignorado si usas flujo Diagnóstico).
                 </label>
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

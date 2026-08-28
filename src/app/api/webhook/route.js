@@ -541,12 +541,15 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
           .update({ anuncio_id: anuncioDetectado.id })
           .eq('id', convExist.id);
 
+        const esDiagnostico = anuncioDetectado.flujo_campana === 'DIAGNOSTICO';
+
         anuncioContexto = `
 🎯 USUARIO VIENE DE ANUNCIO DE META ADS: "${anuncioDetectado.nombre}"
 CURSO DE INTERÉS DETECTADO AUTOMÁTICAMENTE: ${anuncioDetectado.curso_relacionado || 'Sin especificar'}
 HEADLINE DEL ANUNCIO QUE VIO: "${referralData.headline}"
+${esDiagnostico ? 'FLUJO_CAMPANA: DIAGNOSTICO' : ''}
 
-${anuncioDetectado.saltar_onboarding ? `INSTRUCCIÓN CRÍTICA — SKIP ONBOARDING:
+${!esDiagnostico && anuncioDetectado.saltar_onboarding ? `INSTRUCCIÓN CRÍTICA — SKIP ONBOARDING:
 - Este usuario YA vio el anuncio de "${anuncioDetectado.curso_relacionado || 'nuestro curso'}". Sabe de qué se trata.
 - NO hagas el perfilamiento completo de edad, nivel, horarios, para quién es.
 - NO preguntes "¿a quién va dirigido?" ni "¿qué edad tiene el alumno?" al inicio.
@@ -561,6 +564,19 @@ ${anuncioDetectado.saltar_onboarding ? `INSTRUCCIÓN CRÍTICA — SKIP ONBOARDIN
 ANUNCIO: "${referralData.headline || 'Sin título'}"
 NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con intención directa. Sé conciso y directo al responder.
 `;
+      }
+    }
+
+    // Si NO hay referral pero la conversación ya tiene anuncio_id (mensajes de seguimiento del mismo prospecto)
+    if (!referralData && convExist?.anuncio_id) {
+      const { data: anuncioConv } = await supabase
+        .from('anuncios')
+        .select('*')
+        .eq('id', convExist.anuncio_id)
+        .maybeSingle();
+      if (anuncioConv && anuncioConv.flujo_campana === 'DIAGNOSTICO') {
+        anuncioContexto = `FLUJO_CAMPANA: DIAGNOSTICO\n🎯 Este usuario inició desde el anuncio "${anuncioConv.nombre}". Continúa el flujo diagnóstico donde se quedó.`;
+        console.log(`🎯 [CTWA-FOLLOWUP] Continuando flujo DIAGNOSTICO para anuncio "${anuncioConv.nombre}"`);
       }
     }
 

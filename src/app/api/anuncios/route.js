@@ -35,6 +35,7 @@ export async function POST(request) {
         palabras_clave: body.palabras_clave || [],
         curso_relacionado: body.curso_relacionado || null,
         saltar_onboarding: body.saltar_onboarding !== false,
+        flujo_campana: body.flujo_campana || null,
       })
       .select()
       .single()
@@ -64,6 +65,7 @@ export async function PUT(request) {
         palabras_clave: body.palabras_clave || [],
         curso_relacionado: body.curso_relacionado || null,
         saltar_onboarding: body.saltar_onboarding !== false,
+        flujo_campana: body.flujo_campana || null,
       })
       .eq('id', body.id)
       .select()
