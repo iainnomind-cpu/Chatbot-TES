@@ -87,7 +87,9 @@ export async function POST(solicitud) {
       if (valor?.statuses && valor.statuses.length > 0) {
         const st = valor.statuses[0]
         if (st.status === 'failed') {
-          console.error(`❌ [WA-STATUS] ENTREGA FALLIDA — wamid: ${st.id} | recipient: ${st.recipient_id} | error: ${JSON.stringify(st.errors || [])}`)
+          const err = st.errors?.[0] || {}
+          console.error(`❌ [WA-STATUS] ENTREGA FALLIDA — wamid: ${st.id} | recipient: ${st.recipient_id}`)
+          console.error(`❌ [WA-STATUS] Error code: ${err.code} | title: ${err.title} | message: ${err.message} | error_data: ${JSON.stringify(err.error_data || {})}`)
         } else {
           console.log(`📬 [WA-STATUS] Estado: ${st.status} | wamid: ${st.id} | recipient: ${st.recipient_id}`)
         }
