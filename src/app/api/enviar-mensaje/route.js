@@ -103,10 +103,12 @@ export async function POST(solicitud) {
 
     try {
       const res = await axios.post(url, payload, headers)
+      console.log(`✅ [ENVIAR-MSG] Meta respondió OK:`, JSON.stringify(res.data))
       await guardarEnBD(res.data)
       return NextResponse.json({ exito: true, metaResponse: res.data }, { status: 200 })
     } catch (error) {
-      console.warn(`⚠️ Falló envío manual inicial a ${to}:`, error.response?.data || error.message)
+      console.error(`❌ [ENVIAR-MSG] Meta rechazó el envío a ${to}:`, JSON.stringify(error.response?.data || error.message))
+      console.error(`❌ [ENVIAR-MSG] Payload enviado:`, JSON.stringify(payload))
 
       let toCorregido = null;
       if (to.startsWith('521') && to.length === 13) {
