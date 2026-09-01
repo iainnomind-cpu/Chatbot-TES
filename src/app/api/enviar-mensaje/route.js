@@ -100,7 +100,7 @@ export async function POST(solicitud) {
     const headers = {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
     }
-
+    console.log(`📤 [ENVIAR-MSG] Tipo: ${tipo} | Para: ${to} | URL: ${url_archivo || 'ninguna'}`)
     try {
       const res = await axios.post(url, payload, headers)
       console.log(`✅ [ENVIAR-MSG] Meta respondió OK:`, JSON.stringify(res.data))
