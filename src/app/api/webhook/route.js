@@ -84,6 +84,15 @@ export async function POST(solicitud) {
       const cambios = entrada?.changes?.[0];
       const valor = cambios?.value;
 
+      if (valor?.statuses && valor.statuses.length > 0) {
+        const st = valor.statuses[0]
+        if (st.status === 'failed') {
+          console.error(`❌ [WA-STATUS] ENTREGA FALLIDA — wamid: ${st.id} | recipient: ${st.recipient_id} | error: ${JSON.stringify(st.errors || [])}`)
+        } else {
+          console.log(`📬 [WA-STATUS] Estado: ${st.status} | wamid: ${st.id} | recipient: ${st.recipient_id}`)
+        }
+      }
+
       if (valor?.messages && valor.messages.length > 0) {
         plataforma = "whatsapp";
         const msj = valor.messages[0];
