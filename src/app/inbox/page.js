@@ -227,6 +227,7 @@ export default function PaginaInbox() {
   }, [conversaciones, chatActivo]);
 
   const subirArchivo = async (e, tipo = 'imagen') => {
+    e.preventDefault()
     const file = e.target.files?.[0]
     if (!file || !chatActivo) return
 
@@ -247,6 +248,7 @@ export default function PaginaInbox() {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
+        credentials: 'include',
         body: JSON.stringify({ fileName: file.name, contentType: file.type }),
       })
 
@@ -273,6 +275,8 @@ export default function PaginaInbox() {
       const tipoMensaje = file.type.startsWith('video/') ? 'video' : (tipo === 'documento' ? 'archivo' : 'imagen')
       await enviarMensaje(null, publicUrl, tipoMensaje)
       setMostrarClipMenu(false)
+      // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+      e.target.value = ''
     } catch (err) {
       console.error('Error subiendo:', err)
       alert('Error al subir archivo: ' + (err.message || 'Intenta de nuevo'))
@@ -298,6 +302,7 @@ export default function PaginaInbox() {
       const res = await fetch('/api/enviar-mensaje', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload)
       })
       if (res.ok) {
