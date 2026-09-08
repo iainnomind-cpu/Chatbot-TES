@@ -11,6 +11,7 @@ const elementosNavegacion = [
   { nombre: 'Inbox', ruta: '/inbox', icono: 'forum', modulo: 'inbox' },
   { nombre: 'Prospectos', ruta: '/prospectos', icono: 'group', modulo: 'prospectos' },
   { nombre: 'Cursos', ruta: '/cursos', icono: 'school', modulo: 'cursos' },
+  { nombre: 'Seguimiento', ruta: '/seguimiento', icono: 'monitoring', modulo: 'prospectos' },
   { nombre: 'Citas', ruta: '/citas', icono: 'event', modulo: 'citas' },
   { nombre: 'Campañas', ruta: '/campanas', icono: 'campaign', modulo: 'campanas' },
   { nombre: 'Configuración', ruta: '/configuracion', icono: 'smart_toy', modulo: 'configuracion' },
