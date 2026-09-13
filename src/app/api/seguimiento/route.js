@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabase'
+import { sendMetaConversionEvent } from '@/lib/metaCAPI'
 
 const ETAPAS = [
   '1. Prospecto nuevo',
@@ -111,6 +112,12 @@ export async function PATCH(req) {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Si hubo un cambio de etapa, notificar a Meta CAPI
+    if (updates.etapa_funnel) {
+      sendMetaConversionEvent(data, updates.etapa_funnel)
+    }
+
     return NextResponse.json(data)
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })

@@ -1,6 +1,7 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 import axios from 'axios'
+import { sendMetaConversionEvent } from '@/lib/metaCAPI'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,11 +39,20 @@ export async function POST(solicitud) {
       ...cuerpo,
       estado: cuerpo.estado || 'pendiente'
     }])
-    .select('*, prospectos(nombre, telefono)')
+    .select('*, prospectos(id, nombre, telefono, curso_interes, etapa_funnel)')
     .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // --- AUTOMATIZACIÓN DE ETAPA FUNNEL Y META CAPI ---
+  if (cita?.prospectos) {
+    const nuevaEtapa = '4. DX / Cita agendada'
+    if (cita.prospectos.etapa_funnel === '1. Prospecto nuevo' || cita.prospectos.etapa_funnel === '2. Contactado' || cita.prospectos.etapa_funnel === '3. Lead calificado') {
+      await supabase.from('prospectos').update({ etapa_funnel: nuevaEtapa }).eq('id', cita.prospectos.id)
+      sendMetaConversionEvent(cita.prospectos, nuevaEtapa)
+    }
   }
 
   return NextResponse.json(cita, { status: 201 })
@@ -61,12 +71,32 @@ export async function PATCH(solicitud) {
     .from('citas')
     .update(datosActualizacion)
     .eq('id', id)
-    .select('*, prospectos(id, nombre, telefono, canal)')
+    .select('*, prospectos(id, nombre, telefono, canal, curso_interes, etapa_funnel)')
     .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // --- AUTOMATIZACIÓN DE ETAPA FUNNEL Y META CAPI ---
+  if (datosActualizacion.estado && cita?.prospectos) {
+    let nuevaEtapa = null
+    if (datosActualizacion.estado === 'pendiente' || datosActualizacion.estado === 'confirmada') {
+      if (cita.prospectos.etapa_funnel === '1. Prospecto nuevo' || cita.prospectos.etapa_funnel === '2. Contactado' || cita.prospectos.etapa_funnel === '3. Lead calificado') {
+        nuevaEtapa = '4. DX / Cita agendada'
+      }
+    } else if (datosActualizacion.estado === 'completada') {
+      if (cita.prospectos.etapa_funnel !== '6. Inscripción') {
+        nuevaEtapa = '5. DX / Cita asistida'
+      }
+    }
+
+    if (nuevaEtapa) {
+      await supabase.from('prospectos').update({ etapa_funnel: nuevaEtapa }).eq('id', cita.prospectos.id)
+      sendMetaConversionEvent(cita.prospectos, nuevaEtapa)
+    }
+  }
+  // ----------------------------------------------------
 
   // Si la cita fue confirmada, enviar mensaje de confirmación
   if (datosActualizacion.estado === 'confirmada' && cita?.prospectos?.telefono) {
