@@ -62,13 +62,15 @@ export async function GET(req) {
       const semanales = semanas.map(sem => {
         return (prospectos || []).filter(p => {
           const diaProspecto = Math.floor((new Date(p.creado_en) - inicio) / 86400000)
-          const etapaNum = ETAPAS.indexOf(p.etapa_funnel || '1. Prospecto nuevo')
+          let etapaNum = ETAPAS.indexOf(p.etapa_funnel || '1. Prospecto nuevo')
+          if (p.etapa_funnel === '❌ Sin interés / Descartado') etapaNum = 1 // Se cuenta hasta 'Contactado'
           const etapaReq = ETAPAS.indexOf(etapa)
           return diaProspecto >= sem.desde && diaProspecto <= sem.hasta && etapaNum >= etapaReq
         }).length
       })
       const total = (prospectos || []).filter(p => {
-        const etapaNum = ETAPAS.indexOf(p.etapa_funnel || '1. Prospecto nuevo')
+        let etapaNum = ETAPAS.indexOf(p.etapa_funnel || '1. Prospecto nuevo')
+        if (p.etapa_funnel === '❌ Sin interés / Descartado') etapaNum = 1 // Se cuenta hasta 'Contactado'
         const etapaReq = ETAPAS.indexOf(etapa)
         return etapaNum >= etapaReq
       }).length

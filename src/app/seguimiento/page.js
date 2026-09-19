@@ -10,6 +10,7 @@ const ETAPAS = [
   '4. DX / Cita agendada',
   '5. DX / Cita asistida',
   '6. Inscripción',
+  '❌ Sin interés / Descartado'
 ]
 
 export default function PaginaSeguimiento() {
