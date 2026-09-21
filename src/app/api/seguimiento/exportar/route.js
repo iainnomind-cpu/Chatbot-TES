@@ -9,6 +9,7 @@ const ETAPAS = [
   '4. DX / Cita agendada',
   '5. DX / Cita asistida',
   '6. Inscripción',
+  '❌ Sin interés / Descartado'
 ]
 
 export async function GET(req) {
@@ -59,18 +60,30 @@ export async function GET(req) {
     ]
 
     const cortes = ETAPAS.map(etapa => {
+      const esFilaDescartado = etapa === '❌ Sin interés / Descartado'
+      
       const semanales = semanas.map(sem => {
         return (prospectos || []).filter(p => {
           const diaProspecto = Math.floor((new Date(p.creado_en) - inicio) / 86400000)
+          if (diaProspecto < sem.desde || diaProspecto > sem.hasta) return false
+          
+          if (esFilaDescartado) {
+             return p.etapa_funnel === '❌ Sin interés / Descartado'
+          }
+          
           let etapaNum = ETAPAS.indexOf(p.etapa_funnel || '1. Prospecto nuevo')
-          if (p.etapa_funnel === '❌ Sin interés / Descartado') etapaNum = 1 // Se cuenta hasta 'Contactado'
+          if (p.etapa_funnel === '❌ Sin interés / Descartado') etapaNum = 1 // En el funnel regular, cuenta como Contactado
           const etapaReq = ETAPAS.indexOf(etapa)
-          return diaProspecto >= sem.desde && diaProspecto <= sem.hasta && etapaNum >= etapaReq
+          return etapaNum >= etapaReq
         }).length
       })
+      
       const total = (prospectos || []).filter(p => {
+        if (esFilaDescartado) {
+           return p.etapa_funnel === '❌ Sin interés / Descartado'
+        }
         let etapaNum = ETAPAS.indexOf(p.etapa_funnel || '1. Prospecto nuevo')
-        if (p.etapa_funnel === '❌ Sin interés / Descartado') etapaNum = 1 // Se cuenta hasta 'Contactado'
+        if (p.etapa_funnel === '❌ Sin interés / Descartado') etapaNum = 1 // En el funnel regular, cuenta como Contactado
         const etapaReq = ETAPAS.indexOf(etapa)
         return etapaNum >= etapaReq
       }).length
