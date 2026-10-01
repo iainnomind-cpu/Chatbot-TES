@@ -147,13 +147,15 @@ export default function PaginaSeguimiento() {
                       type="text" 
                       placeholder="Ej. Se le envió info..."
                       value={p.ultima_accion || ''}
+                      onFocus={(e) => {
+                        e.target.dataset.original = e.target.value
+                      }}
                       onBlur={(e) => {
-                        if (e.target.value !== p.ultima_accion) {
+                        if (e.target.value !== e.target.dataset.original) {
                            actualizarProspecto(p.id, 'ultima_accion', e.target.value)
                         }
                       }}
                       onChange={(e) => {
-                         const backup = [...datos.prospectos]
                          const nuevos = datos.prospectos.map(x => x.id === p.id ? { ...x, ultima_accion: e.target.value } : x)
                          setDatos(prev => ({ ...prev, prospectos: nuevos }))
                       }}
