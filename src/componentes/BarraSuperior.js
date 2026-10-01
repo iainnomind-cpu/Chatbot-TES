@@ -180,12 +180,12 @@ export default function BarraSuperior() {
           icono: 'person',
           nombre: p.nombre_alumno || p.nombre,
           detalle: p.telefono || p.estado,
-          ruta: '/prospectos'
+          ruta: `/prospectos?id=${p.id}`
         })
       })
     }
 
-    // Search conversations
+    // Search conversaciones
     const { data: convs } = await supabase
       .from('conversaciones')
       .select('id, id_plataforma, prospectos(nombre, nombre_alumno)')
@@ -199,7 +199,7 @@ export default function BarraSuperior() {
           icono: 'chat',
           nombre: c.prospectos?.nombre_alumno || c.prospectos?.nombre || c.id_plataforma,
           detalle: c.id_plataforma,
-          ruta: '/inbox'
+          ruta: `/inbox?id=${c.id}`
         })
       })
     }

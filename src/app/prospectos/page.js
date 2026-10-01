@@ -145,6 +145,23 @@ export default function PaginaProspectos() {
     }
   }, [])
 
+  // Revisar si viene un ID en la URL para abrir el prospecto automáticamente
+  useEffect(() => {
+    if (prospectos.length > 0) {
+      const urlParams = new URLSearchParams(window.location.search)
+      const queryId = urlParams.get('id')
+      if (queryId) {
+        // En supabase los ids pueden ser enteros o uuids, comparamos con string también
+        const encontrado = prospectos.find(p => p.id === parseInt(queryId) || p.id == queryId)
+        if (encontrado) {
+          setProspectoSeleccionado(encontrado)
+          // Limpiar la URL sin recargar
+          window.history.replaceState(null, '', '/prospectos')
+        }
+      }
+    }
+  }, [prospectos])
+
   const exportarCSV = () => {
     const csvHeader = 'Alumno,Contacto/Tutor,Parentesco,Teléfono,Curso,Edad,Nivel,Estado,Lead Score,Creado\n'
     const csvRows = prospectos.map(p => 
