@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { cambiarEstadoProspecto } from '@/lib/prospectoSync'
 import { useNotifications } from '@/componentes/NotificationProvider'
 import ModalFormulario from '@/componentes/ModalFormulario'
 
-export default function PaginaProspectos() {
+function ContenidoProspectos() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [prospectos, setProspectos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState('Todos')
@@ -148,19 +151,18 @@ export default function PaginaProspectos() {
   // Revisar si viene un ID en la URL para abrir el prospecto automáticamente
   useEffect(() => {
     if (prospectos.length > 0) {
-      const urlParams = new URLSearchParams(window.location.search)
-      const queryId = urlParams.get('id')
+      const queryId = searchParams.get('id')
       if (queryId) {
         // En supabase los ids pueden ser enteros o uuids, comparamos con string también
         const encontrado = prospectos.find(p => p.id === parseInt(queryId) || p.id == queryId)
         if (encontrado) {
           setProspectoSeleccionado(encontrado)
           // Limpiar la URL sin recargar
-          window.history.replaceState(null, '', '/prospectos')
+          router.replace('/prospectos', { scroll: false })
         }
       }
     }
-  }, [prospectos])
+  }, [prospectos, searchParams, router])
 
   const exportarCSV = () => {
     const csvHeader = 'Alumno,Contacto/Tutor,Parentesco,Teléfono,Curso,Edad,Nivel,Estado,Lead Score,Creado\n'
@@ -625,5 +627,13 @@ export default function PaginaProspectos() {
         datosIniciales={prospectoEditando}
       />
     </div>
+  )
+}
+
+export default function PaginaProspectos() {
+  return (
+    <Suspense fallback={<div className="p-10 flex items-center gap-2"><span className="material-symbols-outlined animate-spin">refresh</span> Cargando directorio...</div>}>
+      <ContenidoProspectos />
+    </Suspense>
   )
 }
