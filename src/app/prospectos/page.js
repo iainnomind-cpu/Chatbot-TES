@@ -463,7 +463,7 @@ export default function PaginaProspectos() {
               <div className="flex items-center justify-center gap-2 mt-4">
                 {prospectoSeleccionado.conversaciones?.[0] && (
                   <button 
-                    onClick={() => window.location.href = '/inbox'}
+                    onClick={() => window.location.href = `/inbox?id=${prospectoSeleccionado.conversaciones[0].id}`}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 text-xs font-bold rounded-lg transition-colors"
                   >
                     <span className="material-symbols-outlined text-[14px]">chat</span>
