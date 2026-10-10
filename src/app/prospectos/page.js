@@ -112,6 +112,11 @@ function ContenidoProspectos() {
         ...datosSinRelaciones
       } = datos
 
+      // Asegurar que "nombre" no sea null para la base de datos (por si dejan vacío el campo tutor)
+      if (!datosSinRelaciones.nombre || datosSinRelaciones.nombre.trim() === '') {
+        datosSinRelaciones.nombre = datosSinRelaciones.nombre_alumno || 'Desconocido'
+      }
+
       if (prospectoEditando) {
         const { error } = await supabase
           .from('prospectos')
