@@ -78,6 +78,8 @@ export async function POST(solicitud) {
     let referralData = null; // { source_id, headline, body, source_type }
     let receptorOriginal = "me";
     let esEchoDeHumano = false;
+    let urlArchivoEntrante = null; // URL de imagen/video enviada por el prospecto
+    let tipoMensajeEntrante = "texto"; // tipo del mensaje entrante
 
     if (cuerpo.object === "whatsapp_business_account") {
       const entrada = cuerpo.entry?.[0];
@@ -160,7 +162,29 @@ export async function POST(solicitud) {
           if (evento.message.quick_reply) {
             texto = evento.message.quick_reply.payload || texto;
           } else if (evento.message.attachments) {
-            texto = texto || "[Archivo adjunto]";
+            var attach = evento.message.attachments[0];
+            var attachType = (attach && attach.type) ? attach.type : '';
+            var attachUrl = (attach && attach.payload) ? attach.payload.url : null;
+            if (attachType === 'image') {
+              tipoMensajeEntrante = 'imagen';
+              urlArchivoEntrante = attachUrl;
+              texto = texto || '[Imagen]';
+            } else if (attachType === 'video') {
+              tipoMensajeEntrante = 'video';
+              urlArchivoEntrante = attachUrl;
+              texto = texto || '[Video]';
+            } else if (attachType === 'audio') {
+              tipoMensajeEntrante = 'audio';
+              urlArchivoEntrante = attachUrl;
+              texto = texto || '[Audio]';
+            } else if (attachType === 'file') {
+              tipoMensajeEntrante = 'archivo';
+              urlArchivoEntrante = attachUrl;
+              texto = texto || '[Archivo]';
+            } else {
+              texto = texto || '[Archivo adjunto]';
+            }
+            console.log('📎 Attachment entrante tipo:', attachType, '| con url:', !!attachUrl);
           }
           console.log(`✅ [2/10] Parseado OK (Echo: ${esEchoDeHumano}) — plataforma:`, plataforma, "| remitenteId:", remitenteId, "| texto:", texto.substring(0, 50), "| mid:", mensajeId);
         }
@@ -180,8 +204,8 @@ export async function POST(solicitud) {
       }
     }
 
-    if (!plataforma || (!texto && !vieneDeAnuncio)) {
-      console.log("⏭️ [3/10] IGNORADO — plataforma:", plataforma, "| texto:", texto ? texto.substring(0, 30) : "(vacío)", "| vieneDeAnuncio:", vieneDeAnuncio);
+    if (!plataforma || (!texto && !vieneDeAnuncio && !urlArchivoEntrante)) {
+      console.log("⏭️ [3/10] IGNORADO — plataforma:", plataforma, "| texto:", texto ? texto.substring(0, 30) : "(vacío)", "| vieneDeAnuncio:", vieneDeAnuncio, "| urlArchivo:", !!urlArchivoEntrante);
       return NextResponse.json(
         { estado: "ignorado_o_no_soportado" },
         { status: 200 },
@@ -269,9 +293,10 @@ export async function POST(solicitud) {
     const { data: nuevoMsg, error: errMsg } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
       remitente: esEchoDeHumano ? "humano" : "usuario",
-      contenido: texto,
+      contenido: texto || (urlArchivoEntrante ? "[" + tipoMensajeEntrante.charAt(0).toUpperCase() + tipoMensajeEntrante.slice(1) + "]" : ""),
       id_mensaje_meta: mensajeId,
-      tipo: "texto"
+      tipo: tipoMensajeEntrante,
+      url_archivo: urlArchivoEntrante || null
     }).select("id").maybeSingle();
 
     if (errMsg) {
@@ -327,7 +352,7 @@ export async function POST(solicitud) {
     // === ACTUALIZAR INBOX EN TIEMPO REAL ===
     // Actualizar ultimo_mensaje y actualizado_en en la tabla conversaciones para que el sidebar se ordene y muestre el mensaje inmediatamente
     await supabase.from("conversaciones").update({
-      ultimo_mensaje: texto ? texto.substring(0, 200) : (vieneDeAnuncio ? "[Anuncio]" : "[Mensaje]"),
+      ultimo_mensaje: texto ? texto.substring(0, 200) : (urlArchivoEntrante ? "[" + tipoMensajeEntrante.charAt(0).toUpperCase() + tipoMensajeEntrante.slice(1) + "]" : (vieneDeAnuncio ? "[Anuncio]" : "[Mensaje]")),
       actualizado_en: new Date().toISOString(),
       ...(esEchoDeHumano ? { asignado_a_humano: true } : {})
     }).eq("id", convExist.id);
@@ -360,6 +385,14 @@ export async function POST(solicitud) {
         `⏸️ [7/10] Chatbot PAUSADO para ${remitenteId} (asignado a humano). Mensaje guardado en Inbox.`,
       );
       return NextResponse.json({ estado: "pausado_humano" }, { status: 200 });
+    }
+
+    // --- SKIP BOT: SI EL MENSAJE ES SOLO UN ARCHIVO/IMAGEN SIN TEXTO REAL ---
+    // El bot no puede "leer" imagenes, asi que solo la guardamos y no respondemos
+    const etiquetasSoloArchivo = ["[Imagen]", "[Video]", "[Audio]", "[Archivo]", "[Archivo adjunto]"];
+    if (urlArchivoEntrante && (!texto || etiquetasSoloArchivo.includes(texto))) {
+      console.log(`[7/10] Archivo/imagen recibida sin texto real - guardada en Inbox sin respuesta del bot.`);
+      return NextResponse.json({ estado: "imagen_guardada" }, { status: 200 });
     }
     
     // 8. Marcar como "escribiendo..." si es posible
