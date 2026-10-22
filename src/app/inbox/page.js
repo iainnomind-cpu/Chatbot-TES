@@ -930,13 +930,13 @@ export default function PaginaInbox() {
             <button
               type="button"
               onClick={() => { setMostrarEmojis(!mostrarEmojis); setMostrarClipMenu(false); }}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${mostrarEmojis ? 'text-[#1e3a8a]' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors shrink-0 ${mostrarEmojis ? 'text-[#1e3a8a]' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <span className="material-symbols-outlined text-[24px]">mood</span>
             </button>
             <button
               type="button"
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${mostrarClipMenu ? 'text-[#1e3a8a]' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors shrink-0 ${mostrarClipMenu ? 'text-[#1e3a8a]' : 'text-slate-500 hover:text-slate-700'}`}
               title="Adjuntar archivo"
               onClick={() => { setMostrarClipMenu(!mostrarClipMenu); setMostrarEmojis(false); }}
             >
@@ -948,12 +948,12 @@ export default function PaginaInbox() {
               onChange={(e) => setNuevoMensaje(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensaje(e); } }}
               placeholder="Escribe un mensaje"
-              className="flex-1 bg-white rounded-lg px-4 py-2.5 outline-none resize-none text-[14px] text-[#111b21] placeholder:text-slate-400 focus:ring-0 border-none shadow-sm"
+              className="flex-1 bg-white rounded-lg px-4 py-2.5 outline-none resize-none text-base md:text-[14px] text-[#111b21] placeholder:text-slate-400 focus:ring-0 border-none shadow-sm"
               rows={1}
             />
             <button
               type="submit"
-              className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-[#1e3a8a] transition-colors shrink-0"
+              className="w-11 h-11 rounded-full flex items-center justify-center text-slate-500 hover:text-[#1e3a8a] transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-[24px]">{nuevoMensaje.trim() ? 'send' : 'mic'}</span>
             </button>

@@ -15,6 +15,8 @@ export default function BarraSuperior() {
   const [busqueda, setBusqueda] = useState('')
   const [resultados, setResultados] = useState([])
   const [mostrandoResultados, setMostrandoResultados] = useState(false)
+  // TAREA 1: Estado para búsqueda mobile
+  const [mostrarBusquedaMobile, setMostrarBusquedaMobile] = useState(false)
   const [notificaciones, setNotificaciones] = useState([])
   const [notifCount, setNotifCount] = useState(0)
   const [notifsLeidas, setNotifsLeidas] = useState(() => {
@@ -32,6 +34,7 @@ export default function BarraSuperior() {
   const menuRef = useRef(null)
   const notifRef = useRef(null)
   const searchRef = useRef(null)
+  const searchMobileRef = useRef(null)
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -246,16 +249,113 @@ export default function BarraSuperior() {
     }
   }
 
+  // Resultados compartidos para desktop y mobile search
+  const ResultadosBusqueda = () => (
+    <div className="absolute top-12 left-0 w-full bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden py-2 z-50">
+      <div className="px-4 py-2 text-xs font-bold uppercase text-slate-400">Resultados</div>
+      {resultados.length === 0 ? (
+        <div className="px-4 py-6 flex flex-col items-center justify-center text-center">
+          <span className="material-symbols-outlined text-slate-300 text-3xl mb-2">search_off</span>
+          <p className="text-sm text-slate-500 font-medium">No se encontraron resultados</p>
+        </div>
+      ) : (
+        resultados.map((r, i) => (
+          <button
+            key={i}
+            onClick={() => { router.push(r.ruta); setMostrandoResultados(false); setBusqueda(''); setMostrarBusquedaMobile(false) }}
+            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px] text-slate-400">{r.icono}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-800 truncate">{r.nombre}</p>
+              <p className="text-[11px] text-slate-400">{r.detalle}</p>
+            </div>
+            <span className="text-[9px] font-bold uppercase text-slate-300 ml-auto shrink-0">{r.tipo}</span>
+          </button>
+        ))
+      )}
+    </div>
+  )
+
   return (
     <>
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20">
-      
-      <h1 className="text-xl font-bold text-[#191c1d]">{tituloActual}</h1>
+    {/* TAREA 1: Overlay de búsqueda mobile */}
+    {mostrarBusquedaMobile && (
+      <div className="md:hidden fixed inset-0 z-[200] bg-white flex flex-col">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white">
+          <div className="flex-1 flex items-center bg-slate-100 rounded-full px-4 py-2 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#1e3a8a] transition-all">
+            <span className="material-symbols-outlined text-[20px] mr-2 text-slate-400">search</span>
+            <input
+              type="text"
+              placeholder="Buscar prospectos o chats..."
+              className="bg-transparent border-none outline-none text-base w-full placeholder-slate-400"
+              value={busqueda}
+              onChange={manejarBusqueda}
+              onFocus={() => { if (busqueda.length >= 2) setMostrandoResultados(true) }}
+              autoFocus
+            />
+          </div>
+          <button
+            onClick={() => { setMostrarBusquedaMobile(false); setBusqueda(''); setResultados([]); setMostrandoResultados(false) }}
+            className="w-10 h-10 flex items-center justify-center text-slate-500"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        {mostrandoResultados && (
+          <div className="flex-1 overflow-y-auto bg-white">
+            <div className="px-4 py-2 text-xs font-bold uppercase text-slate-400">Resultados</div>
+            {resultados.length === 0 ? (
+              <div className="px-4 py-10 flex flex-col items-center justify-center text-center">
+                <span className="material-symbols-outlined text-slate-300 text-4xl mb-2">search_off</span>
+                <p className="text-sm text-slate-500 font-medium">No se encontraron resultados</p>
+              </div>
+            ) : (
+              resultados.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => { router.push(r.ruta); setMostrandoResultados(false); setBusqueda(''); setMostrarBusquedaMobile(false) }}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 transition-colors border-b border-slate-100"
+                >
+                  <span className="material-symbols-outlined text-[20px] text-slate-400">{r.icono}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{r.nombre}</p>
+                    <p className="text-xs text-slate-400">{r.detalle}</p>
+                  </div>
+                  <span className="text-[9px] font-bold uppercase text-slate-300 shrink-0">{r.tipo}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+        {!mostrandoResultados && (
+          <div className="flex-1 flex items-center justify-center text-slate-300">
+            <div className="text-center">
+              <span className="material-symbols-outlined text-5xl mb-2 block">manage_search</span>
+              <p className="text-sm">Escribe al menos 2 caracteres</p>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
 
-      <div className="flex items-center gap-4">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 z-20">
+      
+      <h1 className="text-base md:text-xl font-bold text-[#191c1d] truncate max-w-[40%] md:max-w-none">{tituloActual}</h1>
+
+      <div className="flex items-center gap-2 md:gap-4">
         
-        {/* Universal Search */}
-        <div className="relative group" ref={searchRef}>
+        {/* TAREA 1: Botón de búsqueda en mobile (solo visible en mobile) */}
+        <button
+          className="md:hidden w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-slate-500 hover:bg-slate-100 transition-colors"
+          onClick={() => setMostrarBusquedaMobile(true)}
+          title="Buscar"
+        >
+          <span className="material-symbols-outlined text-[22px]">search</span>
+        </button>
+
+        {/* Universal Search - solo en desktop */}
+        <div className="relative group hidden md:block" ref={searchRef}>
           <div className="flex items-center bg-slate-100 rounded-full px-4 py-2 text-slate-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#1e3a8a] focus-within:shadow-sm transition-all w-64">
             <span className="material-symbols-outlined text-[20px] mr-2 text-slate-400 group-focus-within:text-[#1e3a8a]">search</span>
             <input 
@@ -296,7 +396,7 @@ export default function BarraSuperior() {
           )}
         </div>
 
-        <div className="h-6 w-px bg-slate-200 mx-2"></div>
+        <div className="h-6 w-px bg-slate-200 mx-1 md:mx-2"></div>
 
         {/* Notifications */}
         <div className="relative" ref={notifRef}>
@@ -313,7 +413,7 @@ export default function BarraSuperior() {
           </button>
 
           {notificacionesAbiertas && (
-            <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
+            <div className="absolute right-0 top-12 w-[calc(100vw-2rem)] md:w-80 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
               <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h3 className="font-bold text-[#191c1d]">Notificaciones</h3>
                 <div className="flex items-center gap-2">

@@ -423,9 +423,13 @@ function ContenidoProspectos() {
             onClick={() => setProspectoSeleccionado(null)}
           />
           
-          <div className="fixed top-20 right-4 bottom-4 w-[90%] md:w-[400px] bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col z-50 animate-[slideInRight_0.3s_ease-out] overflow-hidden">
+          <div className="fixed inset-x-0 bottom-0 md:top-20 md:right-4 md:bottom-4 md:left-auto w-full md:w-[400px] bg-white border border-slate-200 shadow-2xl rounded-t-2xl md:rounded-2xl flex flex-col z-50 bottom-sheet-enter md:animate-[slideInRight_0.3s_ease-out] overflow-hidden max-h-[90vh] md:max-h-none">
+          {/* TAREA 5: Drag handle visible on mobile */}
+          <div className="md:hidden flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 bg-slate-200 rounded-full" />
+          </div>
           {/* Header Modal */}
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white rounded-t-2xl">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
             <h3 className="font-bold text-[#1e3a8a] flex items-center gap-2">
               <span className="material-symbols-outlined">badge</span>
               Expediente

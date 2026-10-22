@@ -22,6 +22,8 @@ export default function BarraLateral() {
   const rutaActual = usePathname()
   const { usuario, esAdmin, tienePermiso } = useAuth()
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0)
+  // TAREA 4: Estado para el drawer de "Más" en mobile
+  const [drawerMasAbierto, setDrawerMasAbierto] = useState(false)
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -44,6 +46,10 @@ export default function BarraLateral() {
     if (el.modulo === 'usuarios') return esAdmin
     return esAdmin || tienePermiso(el.modulo, 'puede_ver')
   })
+
+  // TAREA 4: primeros 5 para el bottom nav, el resto en el drawer
+  const elementosBottomNav = elementosVisibles.slice(0, 5)
+  const elementosExtra = elementosVisibles.slice(5)
 
   return (
     <>
@@ -102,15 +108,56 @@ export default function BarraLateral() {
         </div>
       </aside>
 
+      {/* TAREA 4: Drawer de "Más" para mobile */}
+      {drawerMasAbierto && (
+        <div className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end">
+          {/* Overlay */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setDrawerMasAbierto(false)}
+          />
+          {/* Drawer panel */}
+          <div className="relative bg-white rounded-t-2xl shadow-2xl p-4 bottom-sheet-enter pb-safe">
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">Más opciones</h3>
+            <nav className="flex flex-col gap-1">
+              {elementosExtra.map((elemento) => {
+                const estaActivo = rutaActual === elemento.ruta
+                return (
+                  <Link
+                    key={elemento.ruta}
+                    href={elemento.ruta}
+                    onClick={() => setDrawerMasAbierto(false)}
+                    className={`flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-medium transition-all ${
+                      estaActivo
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span
+                      className="material-symbols-outlined text-[22px]"
+                      style={estaActivo ? { fontVariationSettings: "'FILL' 1" } : {}}
+                    >
+                      {elemento.icono}
+                    </span>
+                    <span>{elemento.nombre}</span>
+                  </Link>
+                )
+              })}
+            </nav>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Nav Mobile */}
-      <nav className="md:hidden fixed bottom-0 w-full rounded-t-2xl z-50 bg-white/90 backdrop-blur-md flex justify-around items-center h-16 px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-slate-100">
-        {elementosVisibles.slice(0, 5).map((elemento) => {
+      <nav className="md:hidden fixed bottom-0 w-full rounded-t-2xl z-50 bg-white/90 backdrop-blur-md flex justify-around items-center h-16 px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-slate-100 bottom-nav-safe">
+        {elementosBottomNav.map((elemento) => {
           const estaActivo = rutaActual === elemento.ruta
           return (
             <Link
               key={elemento.ruta}
               href={elemento.ruta}
-              className={`flex flex-col items-center justify-center transition-transform active:scale-90 px-2 py-1 rounded-xl ${
+              className={`flex flex-col items-center justify-center transition-transform active:scale-90 px-2 py-1 rounded-xl min-w-[44px] min-h-[44px] ${
                 estaActivo
                   ? 'text-blue-700 bg-blue-50'
                   : 'text-slate-400'
@@ -128,6 +175,19 @@ export default function BarraLateral() {
             </Link>
           )
         })}
+
+        {/* TAREA 4: Botón "Más" — solo si hay elementos extra */}
+        {elementosExtra.length > 0 && (
+          <button
+            onClick={() => setDrawerMasAbierto(true)}
+            className={`flex flex-col items-center justify-center transition-transform active:scale-90 px-2 py-1 rounded-xl min-w-[44px] min-h-[44px] ${
+              drawerMasAbierto ? 'text-blue-700 bg-blue-50' : 'text-slate-400'
+            }`}
+          >
+            <span className="material-symbols-outlined text-xl">more_horiz</span>
+            <span className="text-[9px] font-semibold uppercase tracking-wider">Más</span>
+          </button>
+        )}
       </nav>
     </>
   )
