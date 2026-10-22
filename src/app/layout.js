@@ -8,6 +8,7 @@ import { NotificationProvider } from '@/componentes/NotificationProvider'
 import AuthGuard from '@/componentes/AuthGuard'
 import { usePathname } from 'next/navigation'
 import InstallPWA from '@/componentes/InstallPWA'
+import PushManager from '@/componentes/PushManager'
 
 export default function LayoutRaiz({ children }) {
   const pathname = usePathname()
@@ -44,6 +45,7 @@ export default function LayoutRaiz({ children }) {
           </NotificationProvider>
         </AuthProvider>
         <InstallPWA />
+        <PushManager />
       </body>
     </html>
   )
