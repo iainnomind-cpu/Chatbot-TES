@@ -42,10 +42,12 @@ export default function LayoutRaiz({ children }) {
                 </div>
               </main>
             </AuthGuard>
+            {/* PushManager DENTRO de AuthProvider para poder usar useAuth() */}
+            <PushManager />
           </NotificationProvider>
         </AuthProvider>
+        {/* InstallPWA no necesita auth, puede ir fuera */}
         <InstallPWA />
-        <PushManager />
       </body>
     </html>
   )
