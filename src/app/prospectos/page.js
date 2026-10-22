@@ -197,7 +197,7 @@ function ContenidoProspectos() {
     : prospectos.filter(p => p.estado === filtroEstado.toLowerCase())
 
   return (
-    <div className="p-4 md:p-8 w-full flex h-[calc(100vh-65px)] gap-6 overflow-hidden">
+    <div className="p-3 md:p-8 w-full flex h-[calc(100svh-65px-64px)] md:h-[calc(100svh-65px)] gap-6 overflow-hidden">
       
       {/* Columna Principal - Lista */}
       <div className={`flex-1 flex flex-col ${prospectoSeleccionado ? 'hidden lg:flex' : 'flex'}`}>
@@ -247,7 +247,7 @@ function ContenidoProspectos() {
         {vista === 'tabla' ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 overflow-hidden flex flex-col">
           <div className="overflow-y-auto flex-1">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[640px] text-left border-collapse">
               <thead className="bg-[#f8f9fa] sticky top-0 z-10 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Alumno (Prospecto)</th>

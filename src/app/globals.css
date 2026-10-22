@@ -52,6 +52,13 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* En mobile el input del inbox necesita espacio para la bottom nav (64px) */
+@media (max-width: 767px) {
+  .pb-safe {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .bottom-nav-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
 }

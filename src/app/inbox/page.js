@@ -145,9 +145,13 @@ export default function PaginaInbox() {
         }
       }
       if (!inicializadoRef.current && !chatActivoRef.current && data.length > 0) {
-        setChatActivo(data[0])
-        cargarMensajes(data[0].id)
-        cargarProspectosRelacionados(data[0].id_plataforma)
+        // Solo auto-seleccionar el primer chat en desktop (>=768px)
+        // En mobile el usuario debe ver la lista primero
+        if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+          setChatActivo(data[0])
+          cargarMensajes(data[0].id)
+          cargarProspectosRelacionados(data[0].id_plataforma)
+        }
       } else if (chatActivoRef.current) {
         const up = data.find(c => c.id === chatActivoRef.current.id)
         if (up) setChatActivo(up)
@@ -547,7 +551,7 @@ export default function PaginaInbox() {
   const mensajesAgrupados = agruparMensajesPorFecha(mensajes)
 
   return (
-    <div className="h-[calc(100vh-65px)] flex overflow-hidden bg-[#eae6df] font-sans w-full max-w-full" style={{ '--sidebar-width': `${sidebarWidth}px`, '--info-width': `${infoWidth}px` }}>
+    <div className="h-[calc(100svh-65px-64px)] md:h-[calc(100svh-65px)] flex overflow-hidden bg-[#eae6df] font-sans w-full max-w-full" style={{ '--sidebar-width': `${sidebarWidth}px`, '--info-width': `${infoWidth}px` }}>
 
       {/* 1. SIDEBAR DE CONVERSACIONES */}
       <div className={`${chatActivo ? 'hidden md:flex' : 'flex'} w-full md:w-[var(--sidebar-width)] bg-white border-r border-slate-200/80 flex-col h-full shrink-0`}>
@@ -887,7 +891,7 @@ export default function PaginaInbox() {
           )}
 
           {/* Message Input */}
-          <form onSubmit={enviarMensaje} className="px-4 py-2.5 bg-[#f0f2f5] flex items-end gap-2 relative">
+          <form onSubmit={enviarMensaje} className="px-4 py-2.5 pb-safe bg-[#f0f2f5] flex items-end gap-2 relative">
             
             {/* Clip Menu Popover */}
             {mostrarClipMenu && (

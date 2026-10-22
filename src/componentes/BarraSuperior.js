@@ -339,7 +339,7 @@ export default function BarraSuperior() {
       </div>
     )}
 
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 z-20">
+    <header className="h-16 bg-white/95 backdrop-blur-sm border-b border-slate-200 flex items-center justify-between px-4 md:px-6 z-20 sticky top-0">
       
       <h1 className="text-base md:text-xl font-bold text-[#191c1d] truncate max-w-[40%] md:max-w-none">{tituloActual}</h1>
 
