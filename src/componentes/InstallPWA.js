@@ -8,6 +8,14 @@ export default function InstallPWA() {
   const [yaInstalada, setYaInstalada] = useState(false)
 
   useEffect(() => {
+    // ── Registrar Service Worker ──────────────────────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js', { scope: '/' })
+        .then((reg) => console.log('[PWA] SW registrado:', reg.scope))
+        .catch((err) => console.error('[PWA] Error registrando SW:', err))
+    }
+
     // Si ya está instalada como standalone, no mostrar nada
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setYaInstalada(true)
