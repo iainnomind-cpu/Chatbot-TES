@@ -168,19 +168,21 @@ export default function PaginaInbox() {
 
   useEffect(() => {
     cargarConversacionesRef.current?.()
-    const channel = supabase.channel('inbox_master_v3')
+    const channel = supabase.channel('inbox_master_v4')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conversaciones' }, () => {
         cargarConversacionesRef.current?.()
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes' }, (payload) => {
         cargarConversacionesRef.current?.()
         if (chatActivoRef.current && payload.new.conversacion_id === chatActivoRef.current.id) {
-          cargarMensajesRef.current?.(chatActivoRef.current.id)
+          // Agregar mensaje directamente al estado (sin fetch extra)
+          setMensajes(prev => {
+            if (prev.some(m => m.id === payload.new.id)) return prev
+            return [...prev, payload.new]
+          })
           if (payload.new.remitente === 'usuario') {
-            supabase.from('mensajes').update({ leido: true }).eq('id', payload.new.id).then(() => cargarConversacionesRef.current?.()).catch(console.error)
-          }
-          // Bot is typing indicator
-          if (payload.new.remitente === 'usuario') {
+            supabase.from('mensajes').update({ leido: true }).eq('id', payload.new.id)
+              .then(() => cargarConversacionesRef.current?.()).catch(console.error)
             setEscribiendo(true)
             setTimeout(() => setEscribiendo(false), 4000)
           }
@@ -189,12 +191,23 @@ export default function PaginaInbox() {
           }
         }
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'mensajes' }, (payload) => {
+        // Escuchar updates (por si algun mensaje se actualiza via upsert)
+        if (chatActivoRef.current && payload.new.conversacion_id === chatActivoRef.current.id) {
+          setMensajes(prev => prev.map(m => m.id === payload.new.id ? payload.new : m))
+          // Si no estaba en la lista, cargarlo fresco
+          if (!payload.old || !payload.old.id) {
+            cargarMensajesRef.current?.(chatActivoRef.current.id)
+          }
+        }
+        cargarConversacionesRef.current?.()
+      })
       .subscribe()
 
     const interval = setInterval(() => {
       cargarConversacionesRef.current?.()
       if (chatActivoRef.current) cargarMensajesRef.current?.(chatActivoRef.current.id)
-    }, 5000)
+    }, 3000)
 
     return () => { supabase.removeChannel(channel); clearInterval(interval) }
   }, [])

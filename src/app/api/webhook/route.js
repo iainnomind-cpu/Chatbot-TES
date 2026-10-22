@@ -325,14 +325,21 @@ export async function POST(solicitud) {
           : '');
 
         // Guardar mensaje directo sin lock
-        await supabase.from('mensajes').upsert({
+        const { error: errInsertH } = await supabase.from('mensajes').insert({
           conversacion_id: convExist.id,
           remitente: 'usuario',
           contenido: contenidoH,
           id_mensaje_meta: mensajeId,
           tipo: tipoMensajeEntrante,
           url_archivo: urlArchivoEntrante || null
-        }, { onConflict: 'id_mensaje_meta', ignoreDuplicates: true });
+        });
+        if (errInsertH) {
+          if (errInsertH.code === '23505' || (errInsertH.message && errInsertH.message.includes('duplicate'))) {
+            console.log('[HUMANO DIRECTO] Duplicado:', mensajeId);
+            return NextResponse.json({ estado: 'ya_procesado' }, { status: 200 });
+          }
+          console.error('Error insertando msg humano:', errInsertH.message);
+        }
 
         // Actualizar ultimo_mensaje para que aparezca en el inbox
         await supabase.from('conversaciones').update({
