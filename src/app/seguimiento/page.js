@@ -63,7 +63,7 @@ export default function PaginaSeguimiento() {
   }
 
   return (
-    <div className="p-6 md:p-12 max-w-7xl mx-auto space-y-8 animate-in fade-in">
+    <div className="p-3 md:p-12 max-w-7xl mx-auto space-y-6 md:space-y-8 pb-24 md:pb-12 animate-in fade-in">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight text-[#191c1d]">Seguimiento</h1>
@@ -86,7 +86,7 @@ export default function PaginaSeguimiento() {
         </div>
       </div>
 
-      <div className="flex gap-4 border-b border-slate-200 mb-6">
+      <div className="flex gap-4 border-b border-slate-200 mb-6 overflow-x-auto no-scrollbar">
         <button 
           onClick={() => setTabActivo('prospectos')}
           className={`py-3 px-1 border-b-2 font-bold text-sm transition-colors ${tabActivo === 'prospectos' ? 'border-[#00236f] text-[#00236f]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
@@ -108,7 +108,7 @@ export default function PaginaSeguimiento() {
         </div>
       ) : tabActivo === 'prospectos' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full min-w-[700px] text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50/80 text-slate-500 font-semibold sticky top-0">
               <tr>
                 <th className="p-4 border-b">Fecha Ingreso</th>

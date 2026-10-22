@@ -200,7 +200,7 @@ export default function PaginaCitas() {
       </div>
 
       {/* Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8">
         {/* Calendario */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100/50">
@@ -215,7 +215,7 @@ export default function PaginaCitas() {
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-7 gap-y-4 text-center">
+            <div className="grid grid-cols-7 gap-y-2 md:gap-y-4 text-center">
               {diasSemana.map(dia => (
                 <div key={dia} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{dia}</div>
               ))}

@@ -201,14 +201,14 @@ function ContenidoProspectos() {
       
       {/* Columna Principal - Lista */}
       <div className={`flex-1 flex flex-col ${prospectoSeleccionado ? 'hidden lg:flex' : 'flex'}`}>
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+        <div className="flex flex-col gap-3 mb-4 md:mb-6">
           <div>
             <h2 className="text-3xl font-extrabold text-[#191c1d] tracking-tight">Directorio de Prospectos</h2>
             <p className="text-slate-500 text-sm mt-1">
               Gestiona a los alumnos y sus tutores de contacto.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             <button onClick={() => setVista(vista === 'tabla' ? 'kanban' : 'tabla')} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold rounded-xl transition-all">
               <span className="material-symbols-outlined text-lg">{vista === 'tabla' ? 'view_kanban' : 'table_rows'}</span>
               {vista === 'tabla' ? 'Vista Kanban' : 'Vista Lista'}

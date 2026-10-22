@@ -62,3 +62,12 @@ body {
 .bottom-nav-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
 }
+
+/* Hide scrollbar for overflow-x-auto elements on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

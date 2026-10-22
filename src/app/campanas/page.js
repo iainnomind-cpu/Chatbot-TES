@@ -414,7 +414,7 @@ export default function PaginaCampanas() {
       </div>
 
       {/* CONTENEDOR PRINCIPAL BLANCO */}
-      <div className="bg-white rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden min-h-[600px]">
+      <div className="bg-white rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden min-h-[400px] md:min-h-[600px]">
         
         {/* NAVEGACIÓN POR PESTAÑAS (TABS) */}
         <div className="flex border-b border-slate-200 px-6">
