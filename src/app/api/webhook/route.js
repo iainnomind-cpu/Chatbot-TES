@@ -339,6 +339,7 @@ export async function POST(solicitud) {
             return NextResponse.json({ estado: 'ya_procesado' }, { status: 200 });
           }
           console.error('Error insertando msg humano:', errInsertH.message);
+          return NextResponse.json({ error: errInsertH.message }, { status: 500 });
         }
 
         // Actualizar ultimo_mensaje para que aparezca en el inbox
@@ -368,7 +369,7 @@ export async function POST(solicitud) {
     console.log(`ÔÜö´©Å [5/10] Insertando mensaje para batalla: ${mensajeId}`);
     const { data: nuevoMsg, error: errMsg } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
-      remitente: esEchoDeHumano ? "humano" : "usuario",
+      remitente: esEchoDeHumano ? "agente" : "usuario",
       contenido: texto || (urlArchivoEntrante ? "[" + tipoMensajeEntrante.charAt(0).toUpperCase() + tipoMensajeEntrante.slice(1) + "]" : ""),
       id_mensaje_meta: mensajeId,
       tipo: tipoMensajeEntrante,

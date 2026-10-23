@@ -87,7 +87,11 @@ export default function PaginaInbox() {
 
   const cargarMensajes = useCallback(async (id) => {
     if (!id) return
-    const { data } = await supabase.from('mensajes').select('*').eq('conversacion_id', id).order('creado_en', { ascending: true })
+    const { data, error } = await supabase.from('mensajes').select('*').eq('conversacion_id', id).order('creado_en', { ascending: true })
+    if (error) {
+      console.error('Error cargando mensajes de conversacion:', id, error)
+      return
+    }
     if (data) setMensajes(data)
   }, [])
 
