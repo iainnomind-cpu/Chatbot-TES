@@ -134,7 +134,7 @@ export default function PaginaInbox() {
   }
 
   const cargarConversaciones = useCallback(async () => {
-    const { data, error } = await supabase.from('conversaciones').select('*, prospectos(*), mensajes(id, leido, remitente)').order('actualizado_en', { ascending: false })
+    const { data, error } = await supabase.from('conversaciones').select('*, prospectos(*), mensajes(id, leido, remitente), anuncios(id, nombre, curso_relacionado)').order('actualizado_en', { ascending: false })
     if (!error && data) {
       setConversaciones(data)
       const queryId = new URLSearchParams(window.location.search).get('id')
@@ -699,6 +699,15 @@ export default function PaginaInbox() {
                     )}
                     <p className={`text-[12.5px] truncate ${unreadCount > 0 ? 'text-slate-700 font-medium' : 'text-slate-500'}`}>{conv.ultimo_mensaje || 'Conversación vacía'}</p>
                   </div>
+                  {/* Badge de anuncio CTWA */}
+                  {(conv.anuncio_id && conv.anuncios?.nombre) && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="inline-flex items-center gap-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-full">
+                        <span className="material-symbols-outlined" style={{fontSize:'10px'}}>campaign</span>
+                        {conv.anuncios.nombre}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -733,6 +742,13 @@ export default function PaginaInbox() {
                 <span className="text-[11px] text-slate-400 font-medium">
                   {chatActivo.id_plataforma} • {chatActivo.prospectos?.estado?.toUpperCase() || 'NUEVO'}
                 </span>
+                {/* Origen de anuncio CTWA */}
+                {(chatActivo.anuncio_id && chatActivo.anuncios?.nombre) && (
+                  <span className="inline-flex items-center gap-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit mt-0.5">
+                    <span className="material-symbols-outlined" style={{fontSize:'10px'}}>ads_click</span>
+                    {chatActivo.anuncios.nombre}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">

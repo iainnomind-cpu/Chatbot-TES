@@ -54,7 +54,7 @@ function ContenidoProspectos() {
     setCargando(true)
     const { data, error } = await supabase
       .from('prospectos')
-      .select('*, citas(id, fecha, hora, estado), conversaciones(id, id_plataforma, ultimo_mensaje)')
+      .select('*, citas(id, fecha, hora, estado), conversaciones(id, id_plataforma, ultimo_mensaje, anuncio_id, anuncios(id, nombre))')
       .order('creado_en', { ascending: false })
       
     if (!error && data) {
@@ -255,6 +255,7 @@ function ContenidoProspectos() {
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Curso / Interés</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Estado</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Acciones Rápidas</th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Anuncio</th>
                   <th className="px-6 py-4 text-center text-[11px] font-bold uppercase tracking-widest text-slate-400">Score</th>
                 </tr>
               </thead>
@@ -334,6 +335,17 @@ function ContenidoProspectos() {
                           <span className="material-symbols-outlined text-[18px]">delete</span>
                         </button>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {/* Badge anuncio CTWA */}
+                      {p.conversaciones?.[0]?.anuncio_id && p.conversaciones?.[0]?.anuncios?.nombre ? (
+                        <span className="inline-flex items-center gap-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                          <span className="material-symbols-outlined" style={{fontSize:'10px'}}>campaign</span>
+                          {p.conversaciones[0].anuncios.nombre}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 text-[11px]">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2 py-1 rounded inline-block text-[10px] font-black uppercase tracking-wider ${
@@ -539,6 +551,16 @@ function ContenidoProspectos() {
                   <span className="text-[10px] text-blue-500 block mb-1">Canal de Origen</span>
                   <span className="font-bold text-blue-800 uppercase text-xs">{prospectoSeleccionado.canal || 'Desconocido'}</span>
                 </div>
+                {/* Anuncio CTWA de origen */}
+                {prospectoSeleccionado.conversaciones?.[0]?.anuncio_id && prospectoSeleccionado.conversaciones?.[0]?.anuncios?.nombre && (
+                  <div className="bg-purple-50 p-3 rounded-xl border border-purple-200 col-span-2">
+                    <span className="text-[10px] text-purple-500 block mb-1">📢 Origen de Anuncio</span>
+                    <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 font-bold text-xs px-2 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined" style={{fontSize:'12px'}}>ads_click</span>
+                      {prospectoSeleccionado.conversaciones[0].anuncios.nombre}
+                    </span>
+                  </div>
+                )}
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 col-span-2">
                   <span className="text-[10px] text-slate-500 block mb-1">Curso de Interés</span>
                   <span className="font-bold text-slate-800">{prospectoSeleccionado.curso_interes || '—'}</span>
