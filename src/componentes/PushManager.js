@@ -19,19 +19,36 @@ export default function PushManager() {
   const [exito, setExito] = useState(false)
 
   const registrarSuscripcion = useCallback(async () => {
-    if (!usuario || !token || !VAPID_PUBLIC_KEY) return false
+    if (!usuario || !token) { console.warn('[Push] Sin usuario/token'); return false }
+    if (!VAPID_PUBLIC_KEY) { console.error('[Push] VAPID_PUBLIC_KEY no definida — agregar en Vercel'); return false }
     try {
       const registration = await navigator.serviceWorker.ready
+      console.log('[Push] SW listo, obteniendo suscripcion...')
+
+      // Siempre forzar nueva suscripcion si la actual puede estar vencida
       let subscription = await registration.pushManager.getSubscription()
+      if (subscription) {
+        // Verificar que el endpoint todavia sea valido
+        const expirationTime = subscription.expirationTime
+        if (expirationTime && Date.now() > expirationTime - 5 * 60 * 1000) {
+          console.log('[Push] Suscripcion vencida, renovando...')
+          await subscription.unsubscribe()
+          subscription = null
+        }
+      }
 
       if (!subscription) {
+        console.log('[Push] Creando nueva suscripcion push...')
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
         })
+        console.log('[Push] Suscripcion creada:', subscription.endpoint.substring(0, 60) + '...')
+      } else {
+        console.log('[Push] Suscripcion existente OK')
       }
 
-      await fetch('/api/push/subscribe', {
+      const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -43,10 +60,16 @@ export default function PushManager() {
         }),
       })
 
-      console.log('✅ Push subscription registrada en Supabase')
+      if (!res.ok) {
+        const err = await res.text()
+        console.error('[Push] Error guardando suscripcion en DB:', err)
+        return false
+      }
+
+      console.log('[Push] Suscripcion registrada en Supabase correctamente para user:', usuario.id)
       return true
     } catch (err) {
-      console.error('❌ Error registrando suscripción push:', err)
+      console.error('[Push] Error registrando suscripcion push:', err.name, err.message)
       return false
     }
   }, [usuario, token])
@@ -54,27 +77,43 @@ export default function PushManager() {
   useEffect(() => {
     if (!usuario || !token) return
     if (typeof window === 'undefined') return
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
-    if (!VAPID_PUBLIC_KEY) return
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      console.warn('[Push] Navegador no soporta push notifications')
+      return
+    }
+    if (!VAPID_PUBLIC_KEY) {
+      console.error('[Push] NEXT_PUBLIC_VAPID_PUBLIC_KEY no esta definida. Agregar en Vercel Environment Variables.')
+      return
+    }
 
-    // Si ya tiene permiso concedido, sincronizar la suscripción en silencio
+    console.log('[Push] Estado de permiso actual:', Notification.permission)
+
+    // Si ya tiene permiso concedido: re-sincronizar suscripcion silenciosamente
     if (Notification.permission === 'granted') {
       registrarSuscripcion()
       return
     }
 
-    // Si está en 'default' (aún no se ha pedido permiso), verificar si no lo descartó recientemente
+    // Si fue denegado, no podemos hacer nada
+    if (Notification.permission === 'denied') {
+      console.warn('[Push] Permiso DENEGADO por el usuario — debe habilitarlo en ajustes del navegador/sistema')
+      return
+    }
+
+    // Si esta en 'default', verificar si no lo descarto recientemente
     if (Notification.permission === 'default') {
       const descartado = localStorage.getItem('push_prompt_dismissed')
       if (descartado) {
         const dias = (Date.now() - parseInt(descartado, 10)) / (1000 * 60 * 60 * 24)
-        if (dias < 3) return
+        if (dias < 1) return // Solo esperar 1 dia (antes eran 3)
+        // Si ya paso 1 dia, borrar el descarte para volver a mostrar
+        localStorage.removeItem('push_prompt_dismissed')
       }
 
-      // Mostrar banner con un pequeño retraso de 3 segundos
+      // Mostrar banner despues de 2 segundos
       const timer = setTimeout(() => {
         setMostrarBanner(true)
-      }, 3000)
+      }, 2000)
       return () => clearTimeout(timer)
     }
   }, [usuario, token, registrarSuscripcion])
@@ -82,22 +121,24 @@ export default function PushManager() {
   const handleActivar = async () => {
     setCargando(true)
     try {
-      // Direct user gesture: obligatorio para iOS PWA y Chrome móvil
+      console.log('[Push] Solicitando permiso de notificaciones...')
       const permiso = await Notification.requestPermission()
+      console.log('[Push] Respuesta de permiso:', permiso)
       if (permiso === 'granted') {
         const ok = await registrarSuscripcion()
         if (ok) {
           setExito(true)
           setTimeout(() => setMostrarBanner(false), 2500)
         } else {
+          alert('Notificaciones activadas en el sistema, pero hubo un error al guardar la suscripcion. Intenta recargar la app.')
           setMostrarBanner(false)
         }
       } else {
-        console.log('🔔 Permiso de notificaciones denegado o ignorado')
+        console.log('[Push] Permiso denegado o ignorado:', permiso)
         setMostrarBanner(false)
       }
     } catch (err) {
-      console.error('Error al pedir permiso de notificaciones:', err)
+      console.error('[Push] Error al pedir permiso:', err)
       setMostrarBanner(false)
     } finally {
       setCargando(false)
@@ -118,8 +159,8 @@ export default function PushManager() {
           <div className="p-4 flex items-center gap-3 bg-emerald-50 text-emerald-800">
             <span className="material-symbols-outlined text-emerald-600 text-[26px]">check_circle</span>
             <div>
-              <p className="text-sm font-bold">¡Notificaciones activadas!</p>
-              <p className="text-xs text-emerald-600">Recibirás alertas en tu teléfono de mensajes nuevos.</p>
+              <p className="text-sm font-bold">Notificaciones activadas</p>
+              <p className="text-xs text-emerald-600">Recibiras alertas de mensajes nuevos.</p>
             </div>
           </div>
         ) : (
@@ -129,9 +170,9 @@ export default function PushManager() {
                 <span className="material-symbols-outlined text-[22px]">notifications_active</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-800">Activar alertas en tu teléfono</p>
+                <p className="text-sm font-bold text-slate-800">Activar alertas en tu telefono</p>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Recibe una notificación push cada vez que un prospecto envíe un mensaje o solicite atención de un asesor.
+                  Recibe una notificacion push cada vez que llegue un mensaje nuevo.
                 </p>
               </div>
               <button

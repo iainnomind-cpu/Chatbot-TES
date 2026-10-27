@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import dynamic from 'next/dynamic'
+
+// Cargado dinámicamente porque usa APIs del navegador (Notification, ServiceWorker)
+const DiagnosticoPush = dynamic(() => import('@/componentes/DiagnosticoPush'), { ssr: false })
 
 export default function PaginaConfiguracion() {
   const [config, setConfig] = useState({
@@ -182,6 +186,18 @@ export default function PaginaConfiguracion() {
           </button>
         </div>
       </form>
+
+      {/* === SECCIÓN DE NOTIFICACIONES PUSH === */}
+      <div className="mt-8">
+        <div className="flex justify-between items-end mb-4 border-b border-slate-200 pb-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Notificaciones Push</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Diagnóstico y activación de alertas en tu dispositivo</p>
+          </div>
+          <span className="material-symbols-outlined text-slate-400">notifications</span>
+        </div>
+        <DiagnosticoPush />
+      </div>
 
       <div className="mt-8 bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-4 text-amber-900">
         <span className="material-symbols-outlined shrink-0 text-amber-500">warning</span>
