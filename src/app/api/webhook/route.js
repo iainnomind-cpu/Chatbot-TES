@@ -862,6 +862,18 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
 
       await escalarAHumano(convExist.id, prosExist?.id, motivo, categoria);
 
+      // Notificar push a todos los asesores
+      try {
+        await enviarPushAsesores({
+          title: '🚨 Prospecto solicita Asesor',
+          body: `${prosExist?.nombre_alumno || prosExist?.nombre || nombrePerfil || 'Prospecto'}: ${texto ? texto.substring(0, 100) : 'Solicita atención humana'}`,
+          url: `/inbox?id=${convExist.id}`,
+          tag: `escalado-${convExist.id}`
+        });
+      } catch (ePush) {
+        console.error("Error enviando push de escalamiento:", ePush.message);
+      }
+
       const msjEscalamiento = respuesta && respuesta.trim().length > 5 
         ? respuesta.trim()
         : "Voy a transferir tu solicitud ahora mismo con uno de nuestros asesores.\n\nRevisar├í tu caso para darte una respuesta personalizada en unos momentos.\n\nUn asesor se pondr├í en contacto contigo a la brevedad por este medio para darte seguimiento puntual. ┬íGracias por tu paciencia!";
