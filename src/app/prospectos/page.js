@@ -7,12 +7,28 @@ import { cambiarEstadoProspecto } from '@/lib/prospectoSync'
 import { useNotifications } from '@/componentes/NotificationProvider'
 import ModalFormulario from '@/componentes/ModalFormulario'
 
+const ESTADOS_BASE = ['nuevo', 'contactado', 'en_proceso', 'agendado']
+const SIN_ANUNCIO = '__sin_anuncio__'
+const OPCIONES_SCORE = [
+  { valor: 'caliente', etiqueta: '🔥 Caliente', activo: 'bg-red-100 text-red-700 border-red-200' },
+  { valor: 'tibio', etiqueta: '🌡️ Tibio', activo: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { valor: 'frio', etiqueta: '❄️ Frío', activo: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { valor: 'sin_score', etiqueta: 'Sin score', activo: 'bg-slate-200 text-slate-700 border-slate-300' },
+]
+
+// Los valores en BD varían en mayúsculas y acentos ("Borrador", "agendado", "FRÍO")
+const normalizar = (valor) => (valor || '').toString().trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+const nombreAnuncio = (p) => p.conversaciones?.find(c => c.anuncios?.nombre)?.anuncios.nombre || null
+
 function ContenidoProspectos() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [prospectos, setProspectos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState('Todos')
+  const [filtroAnuncio, setFiltroAnuncio] = useState('Todos')
+  const [filtroScores, setFiltroScores] = useState([]) // Vacío = todos los scores
   const [prospectoSeleccionado, setProspectoSeleccionado] = useState(null)
   const [modalAbierto, setModalAbierto] = useState(false)
   const [prospectoEditando, setProspectoEditando] = useState(null)
@@ -170,9 +186,9 @@ function ContenidoProspectos() {
   }, [prospectos, searchParams, router])
 
   const exportarCSV = () => {
-    const csvHeader = 'Alumno,Contacto/Tutor,Parentesco,Teléfono,Curso,Edad,Nivel,Estado,Lead Score,Creado\n'
-    const csvRows = prospectos.map(p => 
-      `"${p.nombre_alumno || ''}","${p.nombre || ''}","${p.parentesco || ''}","${p.telefono || ''}","${p.curso_interes || ''}","${p.edad || ''}","${p.nivel || ''}","${p.estado || ''}","${p.lead_score || ''}","${p.creado_en || ''}"`
+    const csvHeader = 'Alumno,Contacto/Tutor,Parentesco,Teléfono,Curso,Edad,Nivel,Estado,Lead Score,Anuncio,Creado\n'
+    const csvRows = prospectosFiltrados.map(p =>
+      `"${p.nombre_alumno || ''}","${p.nombre || ''}","${p.parentesco || ''}","${p.telefono || ''}","${p.curso_interes || ''}","${p.edad || ''}","${p.nivel || ''}","${p.estado || ''}","${p.lead_score || ''}","${nombreAnuncio(p) || ''}","${p.creado_en || ''}"`
     ).join('\n')
     const blob = new Blob([csvHeader + csvRows], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -192,9 +208,39 @@ function ContenidoProspectos() {
     if (id) { handleCambiarEstado(id, nuevoEstado) }
   }
 
-  const prospectosFiltrados = filtroEstado === 'Todos' 
-    ? prospectos 
-    : prospectos.filter(p => p.estado === filtroEstado.toLowerCase())
+  // Opciones de anuncio con su conteo, a partir de los prospectos cargados
+  const conteoAnuncios = {}
+  prospectos.forEach(p => {
+    const nombre = nombreAnuncio(p)
+    if (nombre) conteoAnuncios[nombre] = (conteoAnuncios[nombre] || 0) + 1
+  })
+  const opcionesAnuncio = Object.keys(conteoAnuncios).sort((a, b) => a.localeCompare(b, 'es'))
+  const totalSinAnuncio = prospectos.filter(p => !nombreAnuncio(p)).length
+
+  // Incluye los estados reales en BD (ej. "Borrador" que crea el webhook), no solo los base
+  const estadosDisponibles = [...new Set([...ESTADOS_BASE, ...prospectos.map(p => normalizar(p.estado))])].filter(Boolean)
+
+  const hayFiltros = filtroEstado !== 'Todos' || filtroAnuncio !== 'Todos' || filtroScores.length > 0
+
+  const limpiarFiltros = () => {
+    setFiltroEstado('Todos')
+    setFiltroAnuncio('Todos')
+    setFiltroScores([])
+  }
+
+  const alternarScore = (score) => {
+    setFiltroScores(prev => prev.includes(score) ? prev.filter(s => s !== score) : [...prev, score])
+  }
+
+  const prospectosFiltrados = prospectos.filter(p => {
+    if (filtroEstado !== 'Todos' && normalizar(p.estado) !== filtroEstado) return false
+    if (filtroAnuncio === SIN_ANUNCIO && nombreAnuncio(p)) return false
+    if (filtroAnuncio !== 'Todos' && filtroAnuncio !== SIN_ANUNCIO && nombreAnuncio(p) !== filtroAnuncio) return false
+    if (filtroScores.length > 0 && !filtroScores.includes(normalizar(p.lead_score) || 'sin_score')) return false
+    return true
+  })
+
+  const columnasKanban = [...new Set([...ESTADOS_BASE, ...prospectosFiltrados.map(p => normalizar(p.estado))])].filter(Boolean)
 
   return (
     <div className="p-3 md:p-8 w-full flex h-[calc(100svh-65px-64px)] md:h-[calc(100svh-65px)] gap-6 overflow-hidden">
@@ -228,20 +274,60 @@ function ContenidoProspectos() {
         </div>
 
         {/* Filtros */}
-        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-6 overflow-x-auto shrink-0 w-fit">
-          {['Todos', 'Nuevo', 'En_proceso', 'Contactado', 'Agendado'].map(estado => (
+        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-3 overflow-x-auto shrink-0 w-fit max-w-full">
+          {['Todos', ...estadosDisponibles].map(estado => (
             <button
               key={estado}
               onClick={() => setFiltroEstado(estado)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all ${
-                filtroEstado === estado 
-                  ? 'bg-white text-blue-900 shadow-sm' 
+              className={`px-4 py-2 rounded-lg text-sm font-bold capitalize whitespace-nowrap transition-all ${
+                filtroEstado === estado
+                  ? 'bg-white text-blue-900 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
               }`}
             >
               {estado.replace('_', ' ')}
             </button>
           ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mb-4 md:mb-6 shrink-0">
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl pl-3 pr-1 max-w-full">
+            <span className="material-symbols-outlined text-[16px] text-purple-600">campaign</span>
+            <select
+              value={filtroAnuncio}
+              onChange={(e) => setFiltroAnuncio(e.target.value)}
+              aria-label="Filtrar por anuncio"
+              className="bg-transparent py-2 pr-1 text-sm font-semibold text-slate-700 outline-none max-w-[220px]"
+            >
+              <option value="Todos">Todas las campañas</option>
+              {opcionesAnuncio.map(nombre => (
+                <option key={nombre} value={nombre}>{nombre} ({conteoAnuncios[nombre]})</option>
+              ))}
+              <option value={SIN_ANUNCIO}>Sin anuncio ({totalSinAnuncio})</option>
+            </select>
+          </div>
+
+          {OPCIONES_SCORE.map(({ valor, etiqueta, activo }) => (
+            <button
+              key={valor}
+              onClick={() => alternarScore(valor)}
+              aria-pressed={filtroScores.includes(valor)}
+              className={`px-3 py-2 rounded-xl border text-xs font-bold whitespace-nowrap transition-all ${
+                filtroScores.includes(valor) ? activo : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {etiqueta}
+            </button>
+          ))}
+
+          <span className="text-xs font-semibold text-slate-500 ml-1">
+            {prospectosFiltrados.length} de {prospectos.length}
+          </span>
+          {hayFiltros && (
+            <button onClick={limpiarFiltros} className="text-xs font-bold text-blue-700 hover:underline">
+              Limpiar filtros
+            </button>
+          )}
         </div>
 
         {vista === 'tabla' ? (
@@ -338,10 +424,10 @@ function ContenidoProspectos() {
                     </td>
                     <td className="px-6 py-4">
                       {/* Badge anuncio CTWA */}
-                      {p.conversaciones?.[0]?.anuncio_id && p.conversaciones?.[0]?.anuncios?.nombre ? (
+                      {nombreAnuncio(p) ? (
                         <span className="inline-flex items-center gap-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap">
                           <span className="material-symbols-outlined" style={{fontSize:'10px'}}>campaign</span>
-                          {p.conversaciones[0].anuncios.nombre}
+                          {nombreAnuncio(p)}
                         </span>
                       ) : (
                         <span className="text-slate-300 text-[11px]">—</span>
@@ -365,17 +451,18 @@ function ContenidoProspectos() {
         ) : (
         /* VISTA KANBAN */
         <div className="flex flex-1 gap-4 overflow-x-auto pb-4 items-start">
-          {['nuevo', 'contactado', 'en_proceso', 'agendado'].map(columna => {
-            const items = prospectosFiltrados.filter(p => p.estado === columna);
+          {columnasKanban.map(columna => {
+            const items = prospectosFiltrados.filter(p => normalizar(p.estado) === columna);
             const tituloColumna = columna === 'nuevo' ? 'Nuevos Leads' :
                                   columna === 'contactado' ? 'Contactados' :
-                                  columna === 'en_proceso' ? 'En Negociación' : 'Inscritos / Agendados';
-            const colorColumna = columna === 'nuevo' ? 'border-slate-200' :
-                                 columna === 'contactado' ? 'border-amber-200' :
-                                 columna === 'en_proceso' ? 'border-blue-200' : 'border-green-200';
-            const colorBg = columna === 'nuevo' ? 'bg-slate-50' :
-                            columna === 'contactado' ? 'bg-amber-50/30' :
-                            columna === 'en_proceso' ? 'bg-blue-50/30' : 'bg-green-50/30';                                 
+                                  columna === 'en_proceso' ? 'En Negociación' :
+                                  columna === 'agendado' ? 'Inscritos / Agendados' : columna.replace('_', ' ');
+            const colorColumna = columna === 'contactado' ? 'border-amber-200' :
+                                 columna === 'en_proceso' ? 'border-blue-200' :
+                                 columna === 'agendado' ? 'border-green-200' : 'border-slate-200';
+            const colorBg = columna === 'contactado' ? 'bg-amber-50/30' :
+                            columna === 'en_proceso' ? 'bg-blue-50/30' :
+                            columna === 'agendado' ? 'bg-green-50/30' : 'bg-slate-50';
             return (
               <div 
                 key={columna} 
@@ -386,7 +473,7 @@ function ContenidoProspectos() {
                 <div className="flex justify-between items-center mb-4 px-1">
                   <h3 className="font-bold text-slate-700 flex items-center gap-1.5 uppercase text-xs tracking-wider">
                     <span className={`w-2.5 h-2.5 rounded-full ${
-                      columna === 'nuevo' ? 'bg-slate-400' : columna === 'contactado' ? 'bg-amber-400' : columna === 'en_proceso' ? 'bg-blue-500' : 'bg-green-500'
+                      columna === 'contactado' ? 'bg-amber-400' : columna === 'en_proceso' ? 'bg-blue-500' : columna === 'agendado' ? 'bg-green-500' : 'bg-slate-400'
                     }`}></span>
                     {tituloColumna}
                   </h3>
