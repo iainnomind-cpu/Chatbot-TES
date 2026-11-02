@@ -2,15 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/componentes/AuthProvider'
+import { obtenerServiceWorker, obtenerSuscripcion } from '@/lib/pushCliente'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = window.atob(base64)
-  return new Uint8Array([...rawData].map((char) => char.charCodeAt(0)))
-}
 
 export default function PushManager() {
   const { usuario, token } = useAuth()
@@ -22,31 +16,11 @@ export default function PushManager() {
     if (!usuario || !token) { console.warn('[Push] Sin usuario/token'); return false }
     if (!VAPID_PUBLIC_KEY) { console.error('[Push] VAPID_PUBLIC_KEY no definida — agregar en Vercel'); return false }
     try {
-      const registration = await navigator.serviceWorker.ready
+      const registration = await obtenerServiceWorker()
       console.log('[Push] SW listo, obteniendo suscripcion...')
 
-      // Siempre forzar nueva suscripcion si la actual puede estar vencida
-      let subscription = await registration.pushManager.getSubscription()
-      if (subscription) {
-        // Verificar que el endpoint todavia sea valido
-        const expirationTime = subscription.expirationTime
-        if (expirationTime && Date.now() > expirationTime - 5 * 60 * 1000) {
-          console.log('[Push] Suscripcion vencida, renovando...')
-          await subscription.unsubscribe()
-          subscription = null
-        }
-      }
-
-      if (!subscription) {
-        console.log('[Push] Creando nueva suscripcion push...')
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-        })
-        console.log('[Push] Suscripcion creada:', subscription.endpoint.substring(0, 60) + '...')
-      } else {
-        console.log('[Push] Suscripcion existente OK')
-      }
+      const subscription = await obtenerSuscripcion(registration, VAPID_PUBLIC_KEY)
+      console.log('[Push] Suscripcion lista:', subscription.endpoint.substring(0, 60) + '...')
 
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',

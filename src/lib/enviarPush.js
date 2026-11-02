@@ -1,11 +1,11 @@
 import { supabaseAdmin } from '@/lib/supabase'
 
-// Envía una notificación a todos los dispositivos suscritos.
+// Envía una notificación a todos los dispositivos suscritos, o solo a uno si se indica su endpoint.
 // El webhook la llama directo: Meta no tiene sesión y /api/push/send exige cookie.
-export async function enviarPush({ title, body, url, tag }) {
-  const { data: suscripciones, error } = await supabaseAdmin
-    .from('push_subscriptions')
-    .select('*')
+export async function enviarPush({ title, body, url, tag, endpoint }) {
+  let consulta = supabaseAdmin.from('push_subscriptions').select('*')
+  if (endpoint) consulta = consulta.eq('endpoint', endpoint)
+  const { data: suscripciones, error } = await consulta
 
   if (error) throw new Error(error.message)
   if (!suscripciones || suscripciones.length === 0) return { enviadas: 0, fallidas: 0, falladasEliminadas: 0 }

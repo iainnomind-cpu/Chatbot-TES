@@ -2,20 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/componentes/AuthProvider'
+import { conTiempoLimite, obtenerServiceWorker, obtenerSuscripcion } from '@/lib/pushCliente'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = window.atob(base64)
-  return new Uint8Array([...rawData].map((char) => char.charCodeAt(0)))
-}
 
 export default function DiagnosticoPush() {
   const { usuario, token } = useAuth()
   const [estado, setEstado] = useState(null)
   const [cargando, setCargando] = useState(false)
+  const [paso, setPaso] = useState('')
   const [resultado, setResultado] = useState(null)
 
   useEffect(() => {
@@ -43,37 +38,34 @@ export default function DiagnosticoPush() {
       // Limpiar descarte previo
       localStorage.removeItem('push_prompt_dismissed')
 
-      // Pedir permiso
-      const permiso = await Notification.requestPermission()
-      if (permiso !== 'granted') {
-        setResultado({ ok: false, msg: `Permiso ${permiso}. Ve a Ajustes del telefono → Aplicaciones → Chrome/CRM → Notificaciones → Activar` })
-        return
-      }
-
-      // Registrar SW
-      const registration = await navigator.serviceWorker.ready
-
-      // Cancelar suscripcion anterior para forzar nueva
-      const subAnterior = await registration.pushManager.getSubscription()
-      if (subAnterior) await subAnterior.unsubscribe()
-
       if (!VAPID_PUBLIC_KEY) {
         setResultado({ ok: false, msg: 'NEXT_PUBLIC_VAPID_PUBLIC_KEY no esta definida en Vercel. Ve a Vercel → tu proyecto → Settings → Environment Variables y agrega la clave VAPID.' })
         return
       }
 
-      // Crear suscripcion nueva
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      })
+      // Pedir permiso solo si hace falta
+      if (Notification.permission !== 'granted') {
+        setPaso('Pidiendo permiso...')
+        const permiso = await Notification.requestPermission()
+        if (permiso !== 'granted') {
+          setResultado({ ok: false, msg: `Permiso ${permiso}. Ve a Ajustes del telefono → Notificaciones → TES CRM → Permitir` })
+          return
+        }
+      }
+
+      setPaso('Preparando la app...')
+      const registration = await obtenerServiceWorker()
+
+      setPaso('Creando suscripción...')
+      const subscription = await obtenerSuscripcion(registration, VAPID_PUBLIC_KEY)
 
       // Guardar en Supabase
-      const res = await fetch('/api/push/subscribe', {
+      setPaso('Guardando...')
+      const res = await conTiempoLimite(fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ subscription: subscription.toJSON(), userId: usuario.id }),
-      })
+      }), 20000, 'El servidor no respondió al guardar la suscripción.')
 
       if (!res.ok) {
         const err = await res.text()
@@ -81,17 +73,19 @@ export default function DiagnosticoPush() {
         return
       }
 
-      // Enviar notificacion de prueba
-      const resPrueba = await fetch('/api/push/send', {
+      // Enviar notificacion de prueba solo a este dispositivo
+      setPaso('Enviando prueba...')
+      const resPrueba = await conTiempoLimite(fetch('/api/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: '✅ TES CRM - Prueba',
           body: 'Las notificaciones funcionan correctamente',
           url: '/inbox',
-          tag: 'prueba-' + Date.now()
+          tag: 'prueba-' + Date.now(),
+          endpoint: subscription.endpoint
         })
-      })
+      }), 20000, 'El servidor no respondió al enviar la prueba.')
       const dataPrueba = await resPrueba.json()
 
       if (!resPrueba.ok) {
@@ -108,6 +102,7 @@ export default function DiagnosticoPush() {
       setResultado({ ok: false, msg: err.message })
     } finally {
       setCargando(false)
+      setPaso('')
     }
   }
 
@@ -161,7 +156,7 @@ export default function DiagnosticoPush() {
         ) : (
           <span className="material-symbols-outlined text-[18px]">notifications_active</span>
         )}
-        {cargando ? 'Activando...' : 'Activar / Re-activar Notificaciones'}
+        {cargando ? (paso || 'Activando...') : 'Activar / Re-activar Notificaciones'}
       </button>
 
       <p className="text-[11px] text-slate-400 text-center leading-relaxed px-2">

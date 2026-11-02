@@ -15,13 +15,11 @@ const PRECACHE_ASSETS = [
 // ─── INSTALACIÓN ────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   console.log('[SW] Instalando...');
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('[SW] Error pre-cacheando:', err);
-      });
-    }).then(() => self.skipWaiting())
-  );
+  // El pre-caché no bloquea la instalación: si tarda, las notificaciones no pueden quedar esperando
+  caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS)).catch((err) => {
+    console.warn('[SW] Error pre-cacheando:', err);
+  });
+  event.waitUntil(self.skipWaiting());
 });
 
 // ─── ACTIVACIÓN ─────────────────────────────────────────────
