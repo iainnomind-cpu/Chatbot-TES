@@ -19,7 +19,7 @@ export async function GET(solicitud) {
   if (modo === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
     return new Response(desafio, { status: 200 });
   }
-  return NextResponse.json({ error: "Verificaci├│n fallida" }, { status: 403 });
+  return NextResponse.json({ error: "Verificación fallida" }, { status: 403 });
 }
 
 // === HELPER FUNCTIONS PARA LOCK DISTRIBUIDO ===
@@ -37,7 +37,7 @@ async function enviarPushAsesores({ title, body, url, tag }) {
 }
 
 async function acquireLock(conversacionId) {
-  const maxRetries = 20; // 20 * 1.5s = 30s de espera m├íxima
+  const maxRetries = 20; // 20 * 1.5s = 30s de espera máxima
   for (let i = 0; i < maxRetries; i++) {
     const now = new Date();
     const lockTimeout = new Date(now.getTime() + 45000); // El lock dura 45s antes de expirar solo
@@ -46,7 +46,7 @@ async function acquireLock(conversacionId) {
       .from('conversaciones')
       .update({ bot_bloqueado_hasta: lockTimeout.toISOString() })
       .eq('id', conversacionId)
-      .lte('bot_bloqueado_hasta', now.toISOString()) // Solo actualiza si ya expir├│ el anterior o est├í libre
+      .lte('bot_bloqueado_hasta', now.toISOString()) // Solo actualiza si ya expiró el anterior o está libre
       .select('id')
       .maybeSingle();
       
@@ -76,10 +76,10 @@ export async function POST(solicitud) {
   try {
     const cuerpo = await solicitud.json();
 
-    console.log("­ƒôÑ [1/10] WEBHOOK RECIBIDO ÔÇö object:", cuerpo.object, "| entry count:", cuerpo.entry?.length || 0);
-    // Log del payload completo para diagn├│stico (solo en caso de IG/Messenger)
+    console.log("📥 [1/10] WEBHOOK RECIBIDO — object:", cuerpo.object, "| entry count:", cuerpo.entry?.length || 0);
+    // Log del payload completo para diagnóstico (solo en caso de IG/Messenger)
     if (cuerpo.object === "page" || cuerpo.object === "instagram") {
-      console.log("­ƒôÑ [1/10] PAYLOAD COMPLETO (IG/MSG):", JSON.stringify(cuerpo, null, 2));
+      console.log("📥 [1/10] PAYLOAD COMPLETO (IG/MSG):", JSON.stringify(cuerpo, null, 2));
     }
 
     let plataforma = null;
@@ -103,10 +103,10 @@ export async function POST(solicitud) {
         const st = valor.statuses[0]
         if (st.status === 'failed') {
           const err = st.errors?.[0] || {}
-          console.error(`ÔØî [WA-STATUS] ENTREGA FALLIDA ÔÇö wamid: ${st.id} | recipient: ${st.recipient_id}`)
-          console.error(`ÔØî [WA-STATUS] Error code: ${err.code} | title: ${err.title} | message: ${err.message} | error_data: ${JSON.stringify(err.error_data || {})}`)
+          console.error(`❌ [WA-STATUS] ENTREGA FALLIDA — wamid: ${st.id} | recipient: ${st.recipient_id}`)
+          console.error(`❌ [WA-STATUS] Error code: ${err.code} | title: ${err.title} | message: ${err.message} | error_data: ${JSON.stringify(err.error_data || {})}`)
         } else {
-          console.log(`­ƒô¼ [WA-STATUS] Estado: ${st.status} | wamid: ${st.id} | recipient: ${st.recipient_id}`)
+          console.log(`📬 [WA-STATUS] Estado: ${st.status} | wamid: ${st.id} | recipient: ${st.recipient_id}`)
         }
       }
 
@@ -115,7 +115,7 @@ export async function POST(solicitud) {
         const msj = valor.messages[0];
         remitenteId = msj.from;
 
-        // Normalizaci├│n para M├®xico (521 -> 52)
+        // Normalización para México (521 -> 52)
         if (remitenteId.startsWith("521") && remitenteId.length === 13) {
           remitenteId = "52" + remitenteId.substring(3);
         }
@@ -130,7 +130,7 @@ export async function POST(solicitud) {
             body: msj.referral.body || '',
             source_type: msj.referral.source_type || 'ad',
           };
-          console.log('­ƒôó [CTWA] Referral detectado:', JSON.stringify(referralData));
+          console.log('📢 [CTWA] Referral detectado:', JSON.stringify(referralData));
         }
 
         if (msj.type === "text") {
@@ -152,10 +152,10 @@ export async function POST(solicitud) {
       }
     } else if (cuerpo.object === "page" || cuerpo.object === "instagram") {
       const entrada = cuerpo.entry?.[0];
-      console.log("­ƒôÑ [2/10] IG/MSG ÔÇö entry.id:", entrada?.id, "| messaging count:", entrada?.messaging?.length || 0);
+      console.log("📥 [2/10] IG/MSG — entry.id:", entrada?.id, "| messaging count:", entrada?.messaging?.length || 0);
       if (entrada?.messaging && entrada.messaging.length > 0) {
         const evento = entrada.messaging[0];
-        console.log("­ƒôÑ [2/10] Evento:", JSON.stringify({
+        console.log("📥 [2/10] Evento:", JSON.stringify({
           sender: evento.sender?.id,
           recipient: evento.recipient?.id,
           hasMessage: !!evento.message,
@@ -203,28 +203,28 @@ export async function POST(solicitud) {
             } else {
               texto = texto || '[Archivo adjunto]';
             }
-            console.log('­ƒôÄ Attachment entrante tipo:', attachType, '| con url:', !!attachUrl);
+            console.log('📎 Attachment entrante tipo:', attachType, '| con url:', !!attachUrl);
           }
-          console.log(`Ô£à [2/10] Parseado OK (Echo: ${esEchoDeHumano}) ÔÇö plataforma:`, plataforma, "| remitenteId:", remitenteId, "| texto:", texto.substring(0, 50), "| mid:", mensajeId);
+          console.log(`✅ [2/10] Parseado OK (Echo: ${esEchoDeHumano}) — plataforma:`, plataforma, "| remitenteId:", remitenteId, "| texto:", texto.substring(0, 50), "| mid:", mensajeId);
         }
       } else if (entrada?.changes && entrada.changes.length > 0) {
-        // Soporte para el bot├│n de "Probar" en Meta for Developers
+        // Soporte para el botón de "Probar" en Meta for Developers
         const valor = entrada.changes[0].value;
         if (valor && valor.message) {
           plataforma = cuerpo.object === "page" ? "messenger" : "instagram";
           remitenteId = String(valor.sender.id);
-          // Meta siempre env├¡a "random_mid", lo forzamos a ser ├║nico para que no lo bloquee el filtro anti-duplicados
+          // Meta siempre envía "random_mid", lo forzamos a ser único para que no lo bloquee el filtro anti-duplicados
           mensajeId = (valor.message.mid === "random_mid") ? "test_mid_" + Date.now() : (valor.message.mid || "test_mid_" + Date.now());
           texto = valor.message.text || "Mensaje de prueba";
-          console.log("Ô£à [2/10] Parseado TEST OK ÔÇö plataforma:", plataforma, "| remitenteId:", remitenteId, "| texto:", texto);
+          console.log("✅ [2/10] Parseado TEST OK — plataforma:", plataforma, "| remitenteId:", remitenteId, "| texto:", texto);
         }
       } else {
-        console.log("ÔÅ¡´©Å [2/10] Sin array messaging ni changes ÔÇö evento ignorado");
+        console.log("⏭️ [2/10] Sin array messaging ni changes — evento ignorado");
       }
     }
 
     if (!plataforma || (!texto && !vieneDeAnuncio && !urlArchivoEntrante)) {
-      console.log("ÔÅ¡´©Å [3/10] IGNORADO ÔÇö plataforma:", plataforma, "| texto:", texto ? texto.substring(0, 30) : "(vac├¡o)", "| vieneDeAnuncio:", vieneDeAnuncio, "| urlArchivo:", !!urlArchivoEntrante);
+      console.log("⏭️ [3/10] IGNORADO — plataforma:", plataforma, "| texto:", texto ? texto.substring(0, 30) : "(vacío)", "| vieneDeAnuncio:", vieneDeAnuncio, "| urlArchivo:", !!urlArchivoEntrante);
       return NextResponse.json(
         { estado: "ignorado_o_no_soportado" },
         { status: 200 },
@@ -232,13 +232,13 @@ export async function POST(solicitud) {
     }
 
     remitenteId = String(remitenteId);
-    console.log("Ô£à [3/10] MENSAJE ACEPTADO ÔÇö plataforma:", plataforma, "| remitente:", remitenteId, "| texto:", texto.substring(0, 80));
+    console.log("✅ [3/10] MENSAJE ACEPTADO — plataforma:", plataforma, "| remitente:", remitenteId, "| texto:", texto.substring(0, 80));
 
     if (plataforma === "messenger" || plataforma === "instagram") {
       const nombreMeta = await obtenerNombrePerfilMeta(remitenteId, plataforma);
       if (nombreMeta && nombreMeta !== "Prospecto") {
         nombrePerfil = nombreMeta;
-        console.log("­ƒæñ Nombre extra├¡do de Meta API:", nombrePerfil);
+        console.log("👤 Nombre extraído de Meta API:", nombrePerfil);
       }
     }
 
@@ -254,12 +254,12 @@ export async function POST(solicitud) {
     // Webhooks concurrentes se separan por un tiempo aleatorio
     await sleep(Math.floor(Math.random() * 2000));
 
-    // === PASO 1: OBTENER CONVERSACI├ôN ├ÜNICA ===
+    // === PASO 1: OBTENER CONVERSACIÓN ÚNICA ===
     const variantesId = remitenteId.startsWith("52")
       ? [remitenteId, remitenteId.replace("52", "521")]
       : [remitenteId];
 
-    console.log(`­ƒöì [4/10] Procesando conversaci├│n para ${remitenteId}...`);
+    console.log(`🔍 [4/10] Procesando conversación para ${remitenteId}...`);
     
     let { data: todasConvs } = await supabase
       .from("conversaciones")
@@ -270,16 +270,16 @@ export async function POST(solicitud) {
     let convExist = null;
     if (todasConvs && todasConvs.length > 0) {
       convExist = todasConvs[0];
-      console.log(`Ô£à [4/10] Conversaci├│n encontrada: ${convExist.id}`);
+      console.log(`✅ [4/10] Conversación encontrada: ${convExist.id}`);
     } else {
-      console.log(`­ƒåò [4/10] Creando nueva conversaci├│n...`);
+      console.log(`🆕 [4/10] Creando nueva conversación...`);
       const { data: nuevaC, error: errNuevaC } = await supabase.from("conversaciones").insert({
         plataforma,
         id_plataforma: remitenteId,
         nombre_contacto: nombrePerfil !== "Prospecto" ? nombrePerfil : "Prospecto"
       }).select("id").maybeSingle();
       
-      if (errNuevaC) console.error("ÔØî Error creando conv:", errNuevaC.message);
+      if (errNuevaC) console.error("❌ Error creando conv:", errNuevaC.message);
 
       if (nuevaC) {
         await sleep(500);
@@ -363,7 +363,7 @@ export async function POST(solicitud) {
     }
 
     // === PASO 2: BATALLA POR EL MENSAJE (LOCK DISTRIBUIDO) ===
-    console.log(`ÔÜö´©Å [5/10] Insertando mensaje para batalla: ${mensajeId}`);
+    console.log(`⚔️ [5/10] Insertando mensaje para batalla: ${mensajeId}`);
     const { data: nuevoMsg, error: errMsg } = await supabase.from("mensajes").insert({
       conversacion_id: convExist.id,
       remitente: esEchoDeHumano ? "agente" : "usuario",
@@ -375,10 +375,10 @@ export async function POST(solicitud) {
 
     if (errMsg) {
       if (errMsg.code === "23505" || errMsg.message?.includes("duplicate")) {
-        console.log("ÔÅ¡´©Å [5/10] Bloqueo por Constraint UNIQUE (Mensaje ya existe)");
+        console.log("⏭️ [5/10] Bloqueo por Constraint UNIQUE (Mensaje ya existe)");
         return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
       }
-      console.error("ÔØî Error insertando mensaje:", errMsg.message);
+      console.error("❌ Error insertando mensaje:", errMsg.message);
     }
 
     await sleep(2000);
@@ -393,19 +393,19 @@ export async function POST(solicitud) {
       return NextResponse.json({ estado: "ya_procesado" }, { status: 200 });
     }
 
-    // === PASO 3: ADQUIRIR LOCK DE CONVERSACI├ôN ===
-    // Esperamos a que la conversaci├│n est├® libre para procesar (evita respuestas dobles a mensajes r├ípidos)
+    // === PASO 3: ADQUIRIR LOCK DE CONVERSACIÓN ===
+    // Esperamos a que la conversación esté libre para procesar (evita respuestas dobles a mensajes rápidos)
     const lockAdquirido = await acquireLock(convExist.id);
     if (!lockAdquirido) {
-      console.log(`ÔÅ¡´©Å [LOCK] No se pudo adquirir el lock para ${convExist.id} despu├®s de esperar. Abortando.`);
+      console.log(`⏭️ [LOCK] No se pudo adquirir el lock para ${convExist.id} después de esperar. Abortando.`);
       return NextResponse.json({ estado: "timeout_lock" }, { status: 200 });
     }
 
     try {
       // === DEBOUNCE MEJORADO ===
-      // Ya tenemos el lock. Verificamos si somos el mensaje M├üS RECIENTE.
-      // Si el usuario envi├│ 2 mensajes r├ípidos, el primero insert├│, esper├│ el lock, lo tom├│.
-      // Pero si somos el primero y hay un segundo mensaje ya insertado en BD, dejamos que el segundo se encargue (que est├í esperando el lock).
+      // Ya tenemos el lock. Verificamos si somos el mensaje MÁS RECIENTE.
+      // Si el usuario envió 2 mensajes rápidos, el primero insertó, esperó el lock, lo tomó.
+      // Pero si somos el primero y hay un segundo mensaje ya insertado en BD, dejamos que el segundo se encargue (que está esperando el lock).
       const { data: ultimoMsgUsuario } = await supabase
         .from("mensajes")
         .select("id_mensaje_meta, id")
@@ -417,11 +417,11 @@ export async function POST(solicitud) {
         .maybeSingle();
 
       if (ultimoMsgUsuario && ultimoMsgUsuario.id_mensaje_meta !== mensajeId) {
-        console.log(`ÔÅ¡´©Å [DEBOUNCE] Abortando petici├│n antigua (${mensajeId}), hay un mensaje m├ís nuevo.`);
+        console.log(`⏭️ [DEBOUNCE] Abortando petición antigua (${mensajeId}), hay un mensaje más nuevo.`);
         return NextResponse.json({ estado: "reemplazado_por_nuevo" }, { status: 200 });
       }
 
-      console.log(`­ƒÅå [WINNER] Ejecuci├│n oficial para: ${mensajeId}`);
+      console.log(`🏆 [WINNER] Ejecución oficial para: ${mensajeId}`);
 
     // === ACTUALIZAR INBOX EN TIEMPO REAL ===
     // Actualizar ultimo_mensaje y actualizado_en en la tabla conversaciones para que el sidebar se ordene y muestre el mensaje inmediatamente
@@ -432,7 +432,7 @@ export async function POST(solicitud) {
     }).eq("id", convExist.id);
 
     if (esEchoDeHumano) {
-      console.log(`ÔÅ©´©Å [ECHO] Mensaje del humano sincronizado. Deteniendo bot.`);
+      console.log(`⏸️ [ECHO] Mensaje del humano sincronizado. Deteniendo bot.`);
       return NextResponse.json({ estado: "echo_sincronizado" }, { status: 200 });
     }
 
@@ -453,10 +453,10 @@ export async function POST(solicitud) {
       }
     }
 
-    // --- PAUSA DE BOT: SI EST├ü ASIGNADO A HUMANO, NO CONSULTA A ALEXIA ---
+    // --- PAUSA DE BOT: SI ESTÁ ASIGNADO A HUMANO, NO CONSULTA A ALEXIA ---
     if (convFull && convFull.asignado_a_humano) {
       console.log(
-        `ÔÅ©´©Å [7/10] Chatbot PAUSADO para ${remitenteId} (asignado a humano). Mensaje guardado en Inbox.`,
+        `⏸️ [7/10] Chatbot PAUSADO para ${remitenteId} (asignado a humano). Mensaje guardado en Inbox.`,
       );
       return NextResponse.json({ estado: "pausado_humano" }, { status: 200 });
     }
@@ -479,11 +479,11 @@ export async function POST(solicitud) {
     // 8. Marcar como "escribiendo..." si es posible
     await marcarEscribiendoWrapper(remitenteId);
 
-    console.log(`­ƒñû [7/10] Bot ACTIVO ÔÇö consultando AlexIA para ${remitenteId} en ${plataforma}`);
+    console.log(`🤖 [7/10] Bot ACTIVO — consultando AlexIA para ${remitenteId} en ${plataforma}`);
 
-    // --- SE ELIMIN├ô LA PAUSA AUTOM├üTICA AQU├ì ---
-    // Ahora permitimos que la IA analice si el usuario solo est├í agradeciendo
-    // o haciendo m├ís preguntas despu├®s de agendar.
+    // --- SE ELIMINÓ LA PAUSA AUTOMÁTICA AQUÍ ---
+    // Ahora permitimos que la IA analice si el usuario solo está agradeciendo
+    // o haciendo más preguntas después de agendar.
     // ---------------------------------------------------------------------
 
     // 4. Consultar AlexIA
@@ -504,9 +504,9 @@ export async function POST(solicitud) {
       if (pData) freshPros = pData;
     }
 
-    // --- DETECCI├ôN DE TRANSICI├ôN AGENTE ÔåÆ BOT ---
-    // Analizamos el historial para detectar si hubo intervenci├│n humana reciente
-    // y construir un resumen de handover para que Alex retome sin confusi├│n.
+    // --- DETECCIÓN DE TRANSICIÓN AGENTE → BOT ---
+    // Analizamos el historial para detectar si hubo intervención humana reciente
+    // y construir un resumen de handover para que Alex retome sin confusión.
     const historialCronologico = (historialRaw || []).slice().reverse();
 
     let huboIntervencionHumana = false;
@@ -519,12 +519,12 @@ export async function POST(solicitud) {
     if (mensajesAgente.length > 0) {
       huboIntervencionHumana = true;
 
-      // Encontrar el ├¡ndice del ├║ltimo mensaje del agente
+      // Encontrar el índice del último mensaje del agente
       const ultimoIdxAgente = historialCronologico.findLastIndex(
         (m) => m.remitente === "humano" || m.remitente === "agente",
       );
 
-      // Extraer la "sesi├│n humana": desde el primer msg de agente hasta el ├║ltimo
+      // Extraer la "sesión humana": desde el primer msg de agente hasta el último
       const primerIdxAgente = historialCronologico.findIndex(
         (m) => m.remitente === "humano" || m.remitente === "agente",
       );
@@ -533,17 +533,17 @@ export async function POST(solicitud) {
         ultimoIdxAgente + 1,
       );
 
-      // Construir resumen legible de lo que el agente habl├│ con el cliente
+      // Construir resumen legible de lo que el agente habló con el cliente
       const lineasResumen = sesionHumana
         .map((m) => {
           if (m.remitente === "humano" || m.remitente === "agente") {
             return `  ASESOR dijo: "${m.contenido}"`;
           }
-          return `  CLIENTE respondi├│: "${m.contenido}"`;
+          return `  CLIENTE respondió: "${m.contenido}"`;
         })
         .join("\n");
 
-      // Mensajes del usuario DESPU├ëS de la ├║ltima intervenci├│n del agente
+      // Mensajes del usuario DESPUÉS de la última intervención del agente
       // (estos son los que el bot necesita atender ahora)
       const mensajesPendientes = historialCronologico
         .slice(ultimoIdxAgente + 1)
@@ -551,26 +551,26 @@ export async function POST(solicitud) {
       const pendientesTexto =
         mensajesPendientes.length > 0
           ? mensajesPendientes.map((m) => `  - "${m.contenido}"`).join("\n")
-          : "  (Ninguno ÔÇö este es el primer mensaje del cliente tras la reactivaci├│n del bot)";
+          : "  (Ninguno — este es el primer mensaje del cliente tras la reactivación del bot)";
 
       resumenHandover = `
-­ƒöä RESUMEN DE TRANSICI├ôN AGENTE ÔåÆ BOT:
-Un asesor humano tom├│ el control de esta conversaci├│n y ya habl├│ con el cliente.
-Aqu├¡ est├í TODO lo que se dijo durante la intervenci├│n humana:
+🔄 RESUMEN DE TRANSICIÓN AGENTE → BOT:
+Un asesor humano tomó el control de esta conversación y ya habló con el cliente.
+Aquí está TODO lo que se dijo durante la intervención humana:
 
 ${lineasResumen}
 
-MENSAJES DEL CLIENTE PENDIENTES DE RESPUESTA (despu├®s de que el agente termin├│):
+MENSAJES DEL CLIENTE PENDIENTES DE RESPUESTA (después de que el agente terminó):
 ${pendientesTexto}
 
-INSTRUCCIONES CR├ìTICAS PARA TI (ALEX):
+INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 1. NO saludes como si fuera la primera vez. El cliente ya estuvo hablando con un asesor.
-2. LEE cuidadosamente lo que el asesor ya habl├│ y acord├│ con el cliente.
-3. Contin├║a la conversaci├│n desde el PUNTO EXACTO donde el asesor la dej├│.
-4. Si el asesor ya resolvi├│ el tema, pregunta amablemente si hay algo m├ís en lo que puedas ayudar.
-5. Si el asesor dej├│ algo pendiente (ej: "te confirmo ma├▒ana"), recon├│celo y ofrece ayuda adicional.
-6. NUNCA repitas informaci├│n que el asesor ya proporcion├│.
-7. Tu tono debe ser de continuidad natural: "┬íHola de nuevo! Veo que mi compa├▒ero ya te atendi├│..."
+2. LEE cuidadosamente lo que el asesor ya habló y acordó con el cliente.
+3. Continúa la conversación desde el PUNTO EXACTO donde el asesor la dejó.
+4. Si el asesor ya resolvió el tema, pregunta amablemente si hay algo más en lo que puedas ayudar.
+5. Si el asesor dejó algo pendiente (ej: "te confirmo mañana"), reconócelo y ofrece ayuda adicional.
+6. NUNCA repitas información que el asesor ya proporcionó.
+7. Tu tono debe ser de continuidad natural: "¡Hola de nuevo! Veo que mi compañero ya te atendió..."
 `;
     }
 
@@ -578,27 +578,27 @@ INSTRUCCIONES CR├ìTICAS PARA TI (ALEX):
       if (m.remitente === "usuario") {
         return { role: "user", content: m.contenido };
       }
-      // Distinguir entre bot, agente humano y seguimientos autom├íticos
+      // Distinguir entre bot, agente humano y seguimientos automáticos
       if (m.remitente === "humano" || m.remitente === "agente") {
         return {
           role: "assistant",
           content: `[MENSAJE DEL ASESOR HUMANO]: ${m.contenido}`,
         };
       }
-      // Marcar mensajes de seguimiento autom├ítico para que la IA no los confunda con respuestas reales
+      // Marcar mensajes de seguimiento automático para que la IA no los confunda con respuestas reales
       if (
         m.id_mensaje_meta &&
         String(m.id_mensaje_meta).startsWith("seguimiento_auto")
       ) {
         return {
           role: "assistant",
-          content: `[SEGUIMIENTO AUTOM├üTICO]: ${m.contenido}`,
+          content: `[SEGUIMIENTO AUTOMÁTICO]: ${m.contenido}`,
         };
       }
       return { role: "assistant", content: m.contenido };
     });
 
-    // OBTENER CITAS PR├ôXIMAS PARA EVITAR CONFLICTOS
+    // OBTENER CITAS PRÓXIMAS PARA EVITAR CONFLICTOS
     const { data: citasFuturasData } = await supabase
       .from("citas")
       .select("fecha, hora")
@@ -632,7 +632,7 @@ INSTRUCCIONES CR├ìTICAS PARA TI (ALEX):
         tieneCitaPendiente = true;
     }
 
-    // === CTWA: DETECCI├ôN DE ANUNCIO ===
+    // === CTWA: DETECCIÓN DE ANUNCIO ===
     let anuncioDetectado = null;
     let anuncioContexto = '';
 
@@ -659,9 +659,9 @@ INSTRUCCIONES CR├ìTICAS PARA TI (ALEX):
         }
       }
 
-      // 3. Guardar anuncio_id en la conversaci├│n si lo detectamos
+      // 3. Guardar anuncio_id en la conversación si lo detectamos
       if (anuncioDetectado) {
-        console.log(`­ƒÄ» [CTWA] Anuncio detectado: "${anuncioDetectado.nombre}" (${anuncioDetectado.id})`);
+        console.log(`🎯 [CTWA] Anuncio detectado: "${anuncioDetectado.nombre}" (${anuncioDetectado.id})`);
         await supabase.from('conversaciones')
           .update({ anuncio_id: anuncioDetectado.id })
           .eq('id', convExist.id);
@@ -669,30 +669,30 @@ INSTRUCCIONES CR├ìTICAS PARA TI (ALEX):
         const esDiagnostico = anuncioDetectado.flujo_campana === 'DIAGNOSTICO';
 
         anuncioContexto = `
-­ƒÄ» USUARIO VIENE DE ANUNCIO DE META ADS: "${anuncioDetectado.nombre}"
-CURSO DE INTER├ëS DETECTADO AUTOM├üTICAMENTE: ${anuncioDetectado.curso_relacionado || 'Sin especificar'}
+🎯 USUARIO VIENE DE ANUNCIO DE META ADS: "${anuncioDetectado.nombre}"
+CURSO DE INTERÉS DETECTADO AUTOMÁTICAMENTE: ${anuncioDetectado.curso_relacionado || 'Sin especificar'}
 HEADLINE DEL ANUNCIO QUE VIO: "${referralData.headline}"
 ${esDiagnostico ? 'FLUJO_CAMPANA: DIAGNOSTICO' : ''}
 
-${!esDiagnostico && anuncioDetectado.saltar_onboarding ? `INSTRUCCI├ôN CR├ìTICA ÔÇö SKIP ONBOARDING:
-- Este usuario YA vio el anuncio de "${anuncioDetectado.curso_relacionado || 'nuestro curso'}". Sabe de qu├® se trata.
-- NO hagas el perfilamiento completo de edad, nivel, horarios, para qui├®n es.
-- NO preguntes "┬┐a qui├®n va dirigido?" ni "┬┐qu├® edad tiene el alumno?" al inicio.
-- RESPONDE DIRECTO: saluda brevemente, menciona que viste que le interes├│ el "${anuncioDetectado.curso_relacionado || 'curso'}" del anuncio, y da los beneficios principales + precio.
-- Solo al final pregunta algo espec├¡fico: "┬┐Para qui├®n ser├¡a? ┬┐Ni├▒o, adulto? ┬┐Cu├íntos a├▒os tiene?" para personalizar la propuesta.
-- Tu primer mensaje debe sentirse como si ya conocieras por qu├® escriben.` : ''}
+${!esDiagnostico && anuncioDetectado.saltar_onboarding ? `INSTRUCCIÓN CRÍTICA — SKIP ONBOARDING:
+- Este usuario YA vio el anuncio de "${anuncioDetectado.curso_relacionado || 'nuestro curso'}". Sabe de qué se trata.
+- NO hagas el perfilamiento completo de edad, nivel, horarios, para quién es.
+- NO preguntes "¿a quién va dirigido?" ni "¿qué edad tiene el alumno?" al inicio.
+- RESPONDE DIRECTO: saluda brevemente, menciona que viste que le interesó el "${anuncioDetectado.curso_relacionado || 'curso'}" del anuncio, y da los beneficios principales + precio.
+- Solo al final pregunta algo específico: "¿Para quién sería? ¿Niño, adulto? ¿Cuántos años tiene?" para personalizar la propuesta.
+- Tu primer mensaje debe sentirse como si ya conocieras por qué escriben.` : ''}
 `;
       } else {
-        console.log(`­ƒôó [CTWA] Referral sin anuncio configurado (source_id: ${referralData.source_id})`);
+        console.log(`📢 [CTWA] Referral sin anuncio configurado (source_id: ${referralData.source_id})`);
         anuncioContexto = `
-­ƒôó USUARIO VIENE DE UN ANUNCIO DE META ADS.
-ANUNCIO: "${referralData.headline || 'Sin t├¡tulo'}"
-NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario viene con intenci├│n directa. S├® conciso y directo al responder.
+📢 USUARIO VIENE DE UN ANUNCIO DE META ADS.
+ANUNCIO: "${referralData.headline || 'Sin título'}"
+NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con intención directa. Sé conciso y directo al responder.
 `;
       }
     }
 
-    // Si NO hay referral pero la conversaci├│n ya tiene anuncio_id (mensajes de seguimiento del mismo prospecto)
+    // Si NO hay referral pero la conversación ya tiene anuncio_id (mensajes de seguimiento del mismo prospecto)
     if (!referralData && convExist?.anuncio_id) {
       const { data: anuncioConv } = await supabase
         .from('anuncios')
@@ -700,8 +700,8 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         .eq('id', convExist.anuncio_id)
         .maybeSingle();
       if (anuncioConv && anuncioConv.flujo_campana === 'DIAGNOSTICO') {
-        anuncioContexto = `FLUJO_CAMPANA: DIAGNOSTICO\n­ƒÄ» Este usuario inici├│ desde el anuncio "${anuncioConv.nombre}". Contin├║a el flujo diagn├│stico donde se qued├│.`;
-        console.log(`­ƒÄ» [CTWA-FOLLOWUP] Continuando flujo DIAGNOSTICO para anuncio "${anuncioConv.nombre}"`);
+        anuncioContexto = `FLUJO_CAMPANA: DIAGNOSTICO\n🎯 Este usuario inició desde el anuncio "${anuncioConv.nombre}". Continúa el flujo diagnóstico donde se quedó.`;
+        console.log(`🎯 [CTWA-FOLLOWUP] Continuando flujo DIAGNOSTICO para anuncio "${anuncioConv.nombre}"`);
       }
     }
 
@@ -709,13 +709,13 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         Fecha de Hoy: ${fechaActualTexto}
         Nombre Alumno: ${freshPros.nombre_alumno || freshPros.nombre || "Desconocido"}
         Edad: ${freshPros.edad || "Desconocida"}
-        Categor├¡a: ${freshPros.categoria_edad || "Desconocida"}
+        Categoría: ${freshPros.categoria_edad || "Desconocida"}
         Nivel: ${freshPros.nivel || "Desconocido"}
         Horario: ${freshPros.horario || "Desconocido"}
-        Curso de Inter├®s: ${anuncioDetectado?.curso_relacionado || freshPros.curso_interes || "Desconocido"}
+        Curso de Interés: ${anuncioDetectado?.curso_relacionado || freshPros.curso_interes || "Desconocido"}
         
-        CITAS OCUPADAS (NO AGENDAR AQU├ì):
-        ${listaCitas || "No hay citas agendadas a├║n."}
+        CITAS OCUPADAS (NO AGENDAR AQUÍ):
+        ${listaCitas || "No hay citas agendadas aún."}
 
         IMPORTANTE: Si ya conoces estos datos, NO los preguntes de nuevo. Solo avanza al siguiente paso del flujo.
         
@@ -723,14 +723,14 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         
         ${huboIntervencionHumana ? resumenHandover : ""}
         
-        TRANSICI├ôN AGENTE-BOT: En el historial ver├ís mensajes marcados como [MENSAJE DEL ASESOR HUMANO]. Esto significa que un asesor humano intervino en la conversaci├│n. Debes:
-        1. Leer TODOS los mensajes del asesor para entender qu├® ya se habl├│ y qu├® se acord├│.
-        2. NO repetir informaci├│n que el asesor ya proporcion├│.
-        3. Continuar la conversaci├│n desde donde el asesor la dej├│, de forma natural.
-        4. Si el asesor ya cerr├│ el tema o agend├│ algo, simplemente pregunta si hay algo m├ís en lo que puedas ayudar.
-        5. Tu primera respuesta tras una transici├│n NUNCA debe ser el mensaje de bienvenida ni reiniciar el perfilamiento.
+        TRANSICIÓN AGENTE-BOT: En el historial verás mensajes marcados como [MENSAJE DEL ASESOR HUMANO]. Esto significa que un asesor humano intervino en la conversación. Debes:
+        1. Leer TODOS los mensajes del asesor para entender qué ya se habló y qué se acordó.
+        2. NO repetir información que el asesor ya proporcionó.
+        3. Continuar la conversación desde donde el asesor la dejó, de forma natural.
+        4. Si el asesor ya cerró el tema o agendó algo, simplemente pregunta si hay algo más en lo que puedas ayudar.
+        5. Tu primera respuesta tras una transición NUNCA debe ser el mensaje de bienvenida ni reiniciar el perfilamiento.
         
-        ${tieneCitaPendiente ? "ÔÜá´©Å ESTADO ACTUAL: EL PROSPECTO YA TIENE UNA CITA AGENDADA. NO LE OFREZCAS AGENDAR OTRA CITA. SI EL PROSPECTO AGRADECE O DICE OK, SOLO DESP├ìDETE AMABLEMENTE Y CIERRA LA CONVERSACI├ôN. NO REPITAS EL MENSAJE DE CONFIRMACI├ôN DE CITA." : ""}`;
+        ${tieneCitaPendiente ? "⚠️ ESTADO ACTUAL: EL PROSPECTO YA TIENE UNA CITA AGENDADA. NO LE OFREZCAS AGENDAR OTRA CITA. SI EL PROSPECTO AGRADECE O DICE OK, SOLO DESPÍDETE AMABLEMENTE Y CIERRA LA CONVERSACIÓN. NO REPITAS EL MENSAJE DE CONFIRMACIÓN DE CITA." : ""}`;
 
 
     // OBTENER CURSOS REALES DE LA BASE DE DATOS
@@ -750,33 +750,33 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
               ? `${c.fecha_inicio_vigencia || 'Ya disponible'} al ${c.fecha_fin_vigencia}`
               : 'Sin fecha de cierre';
             const edadRango = (c.edad_minima || c.edad_maxima)
-              ? `${c.edad_minima || 0} a ${c.edad_maxima || 99} a├▒os`
+              ? `${c.edad_minima || 0} a ${c.edad_maxima || 99} años`
               : 'Todas las edades';
             return `
-­ƒîƒ CURSO ESPECIAL/TEMPORAL: ${c.nombre}
-   MODO: DIRECTO ÔÇö NO hagas el perfilamiento completo (no preguntes nivel, horarios, para qui├®n es)
+🌟 CURSO ESPECIAL/TEMPORAL: ${c.nombre}
+   MODO: DIRECTO — NO hagas el perfilamiento completo (no preguntes nivel, horarios, para quién es)
    Vigencia: ${vigencia}
    Para Edad: ${edadRango}
    Beneficios Condensados: ${c.beneficios || "Generales"}
    Precio Ancla: ${c.precio_ancla || (c.precio ? "$" + c.precio : "A Consultar")}
-   Regalo (Gancho): ${c.regalo_gancho || "­ƒÄü Clase Muestra"}
+   Regalo (Gancho): ${c.regalo_gancho || "🎁 Clase Muestra"}
    Imagen Referencia: ${c.imagen_url || "null"}
             `;
           }
           return `
-­ƒÄô CURSO: ${c.nombre}
-   Frase Espejo: ${c.frase_espejo || "┬íExcelente elecci├│n!"}
+🎓 CURSO: ${c.nombre}
+   Frase Espejo: ${c.frase_espejo || "¡Excelente elección!"}
    Beneficios Condensados: ${c.beneficios || "Generales"}
    Precio Ancla: ${c.precio_ancla || (c.precio ? "$" + c.precio : "A Consultar")}
-   Regalo (Gancho): ${c.regalo_gancho || "­ƒÄü Clase Muestra"}
-   Para Edad/Nivel: ${c.nivel || "Todas"} | Edades: ${c.edad_minima || 0} - ${c.edad_maxima || 99} a├▒os
+   Regalo (Gancho): ${c.regalo_gancho || "🎁 Clase Muestra"}
+   Para Edad/Nivel: ${c.nivel || "Todas"} | Edades: ${c.edad_minima || 0} - ${c.edad_maxima || 99} años
    Imagen Referencia: ${c.imagen_url || "null"}
           `;
         })
         .join("\n\n");
     }
 
-    // Obtener configuraci├│n del bot (horarios, brechas) y citas existentes para evitar cruces
+    // Obtener configuración del bot (horarios, brechas) y citas existentes para evitar cruces
     let configBot = null;
     let citasExistentes = [];
 
@@ -787,13 +787,13 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       .single();
     if (cnf) configBot = cnf;
 
-    // Consultar citas de los pr├│ximos 7 d├¡as para que la IA sepa qu├® est├í ocupado
+    // Consultar citas de los próximos 7 días para que la IA sepa qué está ocupado
     if (citasFuturasData) citasExistentes = citasFuturasData;
 
     const contextoCrmPlus = `${contextoCrm}\n\n## CITAS OCUPADAS ACTUALMENTE:\n${
       citasExistentes.length > 0
         ? citasExistentes.map((c) => `- ${c.fecha} a las ${c.hora}`).join("\n")
-        : "No hay citas agendadas a├║n, todos los horarios est├ín libres."
+        : "No hay citas agendadas aún, todos los horarios están libres."
     }`;
 
     const { respuesta, datos, opciones, intencion } = await consultarAlex(
@@ -810,7 +810,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       configBot,
     );
 
-    // Evitar bucles - comparar con los ├║ltimos 2 mensajes del bot
+    // Evitar bucles - comparar con los últimos 2 mensajes del bot
     const mensajesBot = (historialRaw || []).filter(
       (m) => m.remitente === "bot",
     );
@@ -824,11 +824,11 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       intencion !== "CIERRE_CITA"
     ) {
       console.log(
-        `ÔÜá´©Å Respuesta repetida detectada para ${remitenteId}. Reformulando...`,
+        `⚠️ Respuesta repetida detectada para ${remitenteId}. Reformulando...`,
       );
-      // En vez de ignorar, enviamos un mensaje gen├®rico de avance
+      // En vez de ignorar, enviamos un mensaje genérico de avance
       const respuestaAlternativa =
-        "┬íGracias por tu respuesta! ­ƒÿè ┬┐Me puedes dar un poco m├ís de detalle para poder ayudarte mejor?";
+        "¡Gracias por tu respuesta! 😊 ¿Me puedes dar un poco más de detalle para poder ayudarte mejor?";
       await supabase.from("mensajes").insert({
         conversacion_id: convExist.id,
         remitente: "bot",
@@ -839,16 +839,16 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       return NextResponse.json({ estado: "reformulado" }, { status: 200 });
     }
 
-    console.log(`­ƒñû AlexIA (${remitenteId}):`, { intencion, datos });
+    console.log(`🤖 AlexIA (${remitenteId}):`, { intencion, datos });
 
     if (
       intencion === "SPECIFIC_QUESTION_PASS_AGENT" ||
       intencion === "TRANSFER_HUMANO"
     ) {
-      console.log(`­ƒÜ¿ Escalamiento a humano para ${remitenteId}`);
+      console.log(`🚨 Escalamiento a humano para ${remitenteId}`);
       const motivo =
         datos?.escalation_reason ||
-        "Usuario solicit├│ hablar con un asesor o hizo pregunta compleja";
+        "Usuario solicitó hablar con un asesor o hizo pregunta compleja";
       const categoria = datos?.escalation_category || "pregunta_especifica";
       if (!prosExist) {
         console.log("Creando prospecto de emergencia para escalamiento...");
@@ -880,10 +880,10 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
 
       const msjEscalamiento = respuesta && respuesta.trim().length > 5 
         ? respuesta.trim()
-        : "Voy a transferir tu solicitud ahora mismo con uno de nuestros asesores.\n\nRevisar├í tu caso para darte una respuesta personalizada en unos momentos.\n\nUn asesor se pondr├í en contacto contigo a la brevedad por este medio para darte seguimiento puntual. ┬íGracias por tu paciencia!";
+        : "Voy a transferir tu solicitud ahora mismo con uno de nuestros asesores.\n\nRevisará tu caso para darte una respuesta personalizada en unos momentos.\n\nUn asesor se pondrá en contacto contigo a la brevedad por este medio para darte seguimiento puntual. ¡Gracias por tu paciencia!";
 
       await enviarRespuesta(remitenteId, msjEscalamiento);
-      // Dividir por saltos de l├¡nea para simular el env├¡o de varios mensajes
+      // Dividir por saltos de línea para simular el envío de varios mensajes
       const partesEscalamiento = msjEscalamiento.split("\n\n");
       for (let i = 0; i < partesEscalamiento.length; i++) {
         await supabase.from("mensajes").insert({
@@ -904,20 +904,20 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       const adminPhone = process.env.ADMIN_PHONE_NUMBER;
       if (adminPhone) {
         const msgAdminEscalamiento =
-          `­ƒÜ¿ *┬íSE REQUIERE UN ASESOR HUMANO!* ­ƒÜ¿\n\n` +
-          `­ƒæñ *Prospecto:* ${prosExist?.nombre_alumno || prosExist?.nombre || nombrePerfil || "Desconocido"}\n` +
-          `­ƒô× *Tel├®fono:* ${remitenteId}\n` +
-          `­ƒÆ¼ *Motivo:* El usuario ha solicitado ayuda o el bot no pudo responder.\n\n` +
-          `­ƒöù *Ver en Inbox:* https://erp-total-english.vercel.app/inbox`;
+          `🚨 *¡SE REQUIERE UN ASESOR HUMANO!* 🚨\n\n` +
+          `👤 *Prospecto:* ${prosExist?.nombre_alumno || prosExist?.nombre || nombrePerfil || "Desconocido"}\n` +
+          `📞 *Teléfono:* ${remitenteId}\n` +
+          `💬 *Motivo:* El usuario ha solicitado ayuda o el bot no pudo responder.\n\n` +
+          `🔗 *Ver en Inbox:* https://erp-total-english.vercel.app/inbox`;
 
-        console.log("­ƒôó Notificaci├│n WhatsApp Admin desactivada temporalmente");
+        console.log("📢 Notificación WhatsApp Admin desactivada temporalmente");
         // await enviarRespuesta(adminPhone, msgAdminEscalamiento);
       }
 
-      // Notificaci├│n por correo con Resend
+      // Notificación por correo con Resend
       try {
         const adminEmail = process.env.ADMIN_EMAIL || "admin@tes.edu";
-        console.log("­ƒôº Notificando por email (PAUSADO TEMPORALMENTE):", adminEmail);
+        console.log("📧 Notificando por email (PAUSADO TEMPORALMENTE):", adminEmail);
         /*
         if (adminEmail) {
           const resEmail = await notificarEscalamientoAdmin({
@@ -931,15 +931,15 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             motivo: texto || "escalamiento",
             conversacionId: convExist.id,
           });
-          console.log("­ƒôº Resultado de notificaci├│n email:", resEmail);
+          console.log("📧 Resultado de notificación email:", resEmail);
         } else {
           console.warn(
-            "ÔÜá´©Å No se encontr├│ email de administrador para enviar alerta de escalamiento.",
+            "⚠️ No se encontró email de administrador para enviar alerta de escalamiento.",
           );
         }
         */
       } catch (e) {
-        console.error("ÔØî Error enviando notificaci├│n de correo:", e);
+        console.error("❌ Error enviando notificación de correo:", e);
       }
 
       return NextResponse.json({ estado: "escalado" }, { status: 200 });
@@ -950,7 +950,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
     if (datos && Object.keys(datos).length > 0) {
       try {
         if (!prosExist) {
-          // Crear Prospecto solo si tenemos datos m├¡nimos (Edad, Nivel o Horario)
+          // Crear Prospecto solo si tenemos datos mínimos (Edad, Nivel o Horario)
           if (
             datos.edad ||
             datos.nivel ||
@@ -1016,7 +1016,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             console.error("Error actualizando prospecto:", crmError.message);
         }
       } catch (errSync) {
-        console.error("ÔØî Error fatal en sync CRM:", errSync.message);
+        console.error("❌ Error fatal en sync CRM:", errSync.message);
       }
     }
 
@@ -1037,7 +1037,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       // 2. Extraer nombre del alumno
       let nombreFinal = datos.nombre_alumno;
 
-      // Si la intenci├│n es recoger nombre o estamos agendando
+      // Si la intención es recoger nombre o estamos agendando
       if (isInvalidN(nombreFinal) && (intencion === "SCHEDULING_DATE" || intencion === "RECOGER_NOMBRE")) {
         const textoLimpio = texto.trim();
         if (textoLimpio && textoLimpio.split(/\s+/).length <= 5 && !/\d/.test(textoLimpio) && !textoLimpio.includes("http")) {
@@ -1051,7 +1051,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       }
 
       if (nombreFinal && !isInvalidN(nombreFinal)) {
-        console.log("­ƒôî Guardando nombre_alumno:", nombreFinal);
+        console.log("📌 Guardando nombre_alumno:", nombreFinal);
         await supabase
           .from("prospectos")
           .update({ nombre_alumno: nombreFinal, nombre: nombreFinal })
@@ -1066,11 +1066,11 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       }
     }
 
-    // 6. L├│gica de Citas (Si la intenci├│n es CIERRE_CITA)
+    // 6. Lógica de Citas (Si la intención es CIERRE_CITA)
     if (intencion === "CIERRE_CITA") {
       // Asegurarnos de tener un prospecto vinculado antes de crear la cita
       if (!prosExist) {
-        console.log("­ƒöì [6/10] Prospecto no encontrado en sync previo, intentando recuperaci├│n final...");
+        console.log("🔍 [6/10] Prospecto no encontrado en sync previo, intentando recuperación final...");
         const { data: pRecheck } = await supabase.from("prospectos").select("*").eq("telefono", remitenteId).maybeSingle();
         if (pRecheck) {
           prosExist = pRecheck;
@@ -1112,13 +1112,13 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             prospecto_id: prosExist.id,
             fecha: fCitaStr,
             hora: datos.hora_cita || "16:00",
-            tipo: "Inscripci├│n / Sesi├│n Informativa",
+            tipo: "Inscripción / Sesión Informativa",
             estado: "pendiente"
           };
-          console.log("­ƒôà Creando cita oficial:", insertCita);
+          console.log("📅 Creando cita oficial:", insertCita);
           const { error: insErr } = await supabase.from("citas").insert(insertCita);
         if (insErr) {
-          console.error("ÔØî Error insertando cita:", insErr.message);
+          console.error("❌ Error insertando cita:", insErr.message);
         } else {
           await supabase
             .from("prospectos")
@@ -1133,7 +1133,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
                 : citaExistente.fecha,
             hora: datos.hora_cita || citaExistente.hora,
           };
-          console.log("­ƒôà Actualizando cita existente:", updateCita);
+          console.log("📅 Actualizando cita existente:", updateCita);
           await supabase
             .from("citas")
             .update(updateCita)
@@ -1146,7 +1146,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
       }
     }
 
-      // --- NOTIFICACI├ôN AL ADMINISTRADOR ---
+      // --- NOTIFICACIÓN AL ADMINISTRADOR ---
       const adminPhone = process.env.ADMIN_PHONE_NUMBER;
       if (adminPhone) {
         const nombreFinal =
@@ -1160,21 +1160,21 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         const nivelFinal = prosExist.nivel || datos.nivel || "No especificado";
 
         const msgAdmin =
-          `­ƒÅ½ *┬íNUEVA CITA AGENDADA EN TES!* ­ƒÅ½\n\n` +
-          `­ƒæñ *Alumno:* ${nombreFinal}\n` +
-          `­ƒôà *Fecha:* ${fCitaStr}\n` +
-          `ÔÅ░ *Hora:* ${datos.hora_cita || "16:00"}\n` +
-          `­ƒôÜ *Curso:* ${cursoFinal}\n` +
-          `­ƒôè *Nivel:* ${nivelFinal}\n\n` +
-          `­ƒöù *Ver en Citas:* https://erp-total-english.vercel.app/citas`;
+          `🏫 *¡NUEVA CITA AGENDADA EN TES!* 🏫\n\n` +
+          `👤 *Alumno:* ${nombreFinal}\n` +
+          `📅 *Fecha:* ${fCitaStr}\n` +
+          `⏰ *Hora:* ${datos.hora_cita || "16:00"}\n` +
+          `📚 *Curso:* ${cursoFinal}\n` +
+          `📊 *Nivel:* ${nivelFinal}\n\n` +
+          `🔗 *Ver en Citas:* https://erp-total-english.vercel.app/citas`;
 
-        console.log("­ƒôó Notificaci├│n WhatsApp Admin desactivada temporalmente");
+        console.log("📢 Notificación WhatsApp Admin desactivada temporalmente");
         // await enviarRespuesta(adminPhone, msgAdmin);
 
-        // Notificaci├│n por Email (Modo Seguro para Resend)
+        // Notificación por Email (Modo Seguro para Resend)
         try {
           const emailAdmin = process.env.ADMIN_EMAIL || "admin@tes.edu";
-          console.log("­ƒôº Notificando cita por email a (PAUSADO TEMPORALMENTE):", emailAdmin);
+          console.log("📧 Notificando cita por email a (PAUSADO TEMPORALMENTE):", emailAdmin);
           /*
           await notificarCitaAdmin({
             adminEmail: emailAdmin,
@@ -1186,12 +1186,12 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
           });
           */
         } catch (eMailErr) {
-          console.error("ÔØî Error enviando email de cita:", eMailErr);
+          console.error("❌ Error enviando email de cita:", eMailErr);
         }
       }
     }
 
-    // 7. Enviar a Meta con Pausas y Simulaci├│n de Escritura
+    // 7. Enviar a Meta con Pausas y Simulación de Escritura
     let imagenUrl = null;
     if (datos && datos.imagen && datos.imagen !== "null") {
       if (datos.imagen.startsWith("http")) {
@@ -1201,11 +1201,11 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://hngcvuoyfkkrqdazbivv.supabase.co"; // fallback seguro si es necesario
         imagenUrl = `${supabaseUrl}/storage/v1/object/public/recursos/${datos.imagen}`;
       } else {
-        // Dominio de producci├│n - Im├ígenes est├íticas (ej: CHILDREN.jpg)
+        // Dominio de producción - Imágenes estáticas (ej: CHILDREN.jpg)
         const origin = process.env.NEXT_PUBLIC_BASE_URL || "https://erp-total-english.vercel.app";
         imagenUrl = `${origin}/cursos/${datos.imagen.replace(/^\//, '')}`;
       }
-      console.log("­ƒû╝´©Å Imagen URL construida:", imagenUrl);
+      console.log("🖼️ Imagen URL construida:", imagenUrl);
     }
 
     // Preparar opciones (sanitizar)
@@ -1216,14 +1216,14 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             .filter((o) => o !== "" && !o.toLowerCase().includes("opcional"))
         : null;
 
-    // 8. PREPARAR IMAGEN (Solo en recomendaci├│n de curso)
+    // 8. PREPARAR IMAGEN (Solo en recomendación de curso)
     let imgUrl = null;
     let respuestaLimpia = respuesta;
     if (respuestaLimpia) {
       respuestaLimpia = respuestaLimpia.replace(/\\n/g, '\n');
       // Limpiar texto residual de opciones/botones que la IA pueda haber incluido
       respuestaLimpia = respuestaLimpia.replace(/\*?\(?JSON opciones:.*?\)\*?/gi, '');
-      respuestaLimpia = respuestaLimpia.replace(/┬┐Qu├® prefieres\??\s*­ƒæç?\s*$/gm, '');
+      respuestaLimpia = respuestaLimpia.replace(/¿Qué prefieres\??\s*👇?\s*$/gm, '');
       respuestaLimpia = respuestaLimpia.replace(/\n\n+$/g, '');
       respuestaLimpia = respuestaLimpia.trim();
     }
@@ -1238,15 +1238,15 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         imgUrl = imagenUrl;
       }
     } catch (imgErr) {
-      console.error("ÔØî Error preparando imagen:", imgErr.message);
+      console.error("❌ Error preparando imagen:", imgErr.message);
     }
 
-    // 8. ENVIAR TEXTO E IMAGEN (L├│gica agrupada)
-    console.log("­ƒôñ [8/10] Enviando respuesta ÔÇö plataforma:", plataforma, "| tieneImagen:", !!imgUrl, "| respuesta:", respuesta?.substring(0, 80));
+    // 8. ENVIAR TEXTO E IMAGEN (Lógica agrupada)
+    console.log("📤 [8/10] Enviando respuesta — plataforma:", plataforma, "| tieneImagen:", !!imgUrl, "| respuesta:", respuesta?.substring(0, 80));
     try {
       if (imgUrl) {
-        console.log("­ƒû╝´©Å [8/10] FLUJO CON IMAGEN ÔÇö URL:", imgUrl);
-        // L├ôGICA CON IMAGEN: Enviar recomendaci├│n como pie de foto (caption)
+        console.log("🖼️ [8/10] FLUJO CON IMAGEN — URL:", imgUrl);
+        // LÓGICA CON IMAGEN: Enviar recomendación como pie de foto (caption)
         const partesRespuesta = respuestaLimpia
           .split("\n\n")
           .filter((p) => p.trim() !== "");
@@ -1255,11 +1255,11 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         let textoCaption = "";
         let textoCierre = "";
 
-        // Caso 3 partes: Intro (Perm├¡teme...) | Caption (Imagen) | Cierre (Pregunta final)
+        // Caso 3 partes: Intro (Permíteme...) | Caption (Imagen) | Cierre (Pregunta final)
         if (
           partesRespuesta.length >= 3 &&
           (partesRespuesta[0].toLowerCase().includes("momento") || 
-           partesRespuesta[0].toLowerCase().includes("perm├¡teme"))
+           partesRespuesta[0].toLowerCase().includes("permíteme"))
         ) {
           textoIntro = partesRespuesta[0];
           textoCaption = partesRespuesta[1];
@@ -1269,7 +1269,7 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
         else if (
           partesRespuesta.length > 0 &&
           (partesRespuesta[0].toLowerCase().includes("momento") || 
-           partesRespuesta[0].toLowerCase().includes("perm├¡teme"))
+           partesRespuesta[0].toLowerCase().includes("permíteme"))
         ) {
           textoIntro = partesRespuesta[0];
           textoCaption = partesRespuesta.slice(1).join("\n\n");
@@ -1291,9 +1291,9 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             await marcarEscribiendoWrapper(remitenteId);
             await sleep(1500);
             const introOk = await enviarRespuesta(remitenteId, textoIntro);
-            console.log("­ƒôñ [8/10] Intro enviada:", introOk ? "OK" : "FALL├ô");
+            console.log("📤 [8/10] Intro enviada:", introOk ? "OK" : "FALLÓ");
           } catch (e) {
-            console.error("ÔØî [8/10] Error enviando intro:", e.message);
+            console.error("❌ [8/10] Error enviando intro:", e.message);
           }
         }
 
@@ -1311,14 +1311,14 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             await marcarEscribiendoWrapper(remitenteId);
             await sleep(1500);
             const imgOk = await enviarRespuesta(remitenteId, null, imgUrl);
-            console.log("­ƒû╝´©Å [8/10] Imagen enviada por Meta (separada):", imgOk ? "OK" : "FALL├ô");
+            console.log("🖼️ [8/10] Imagen enviada por Meta (separada):", imgOk ? "OK" : "FALLÓ");
           } catch (e) {
-            console.error("ÔØî [8/10] Error enviando imagen:", e.message);
+            console.error("❌ [8/10] Error enviando imagen:", e.message);
           }
         }
 
         if (textoCaption) {
-          // 2. Guardar texto en DB (despu├®s de la imagen)
+          // 2. Guardar texto en DB (después de la imagen)
           await supabase.from("mensajes").insert({
             conversacion_id: convExist.id,
             remitente: "bot",
@@ -1330,13 +1330,13 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             await marcarEscribiendoWrapper(remitenteId);
             await sleep(2000);
             const txtOk = await enviarRespuesta(remitenteId, textoCaption);
-            console.log("­ƒôñ [8/10] Texto descriptivo enviado:", txtOk ? "OK" : "FALL├ô");
+            console.log("📤 [8/10] Texto descriptivo enviado:", txtOk ? "OK" : "FALLÓ");
           } catch (e) {
-            console.error("ÔØî [8/10] Error enviando texto:", e.message);
+            console.error("❌ [8/10] Error enviando texto:", e.message);
           }
         }
 
-        // Si hay texto de cierre (opcional, si se separ├│ en 3 partes), se env├¡a al final
+        // Si hay texto de cierre (opcional, si se separó en 3 partes), se envía al final
         if (typeof textoCierre === 'string' && textoCierre.trim()) {
           try {
             await supabase.from("mensajes").insert({
@@ -1348,27 +1348,27 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
             await sleep(1500);
             await enviarRespuesta(remitenteId, textoCierre);
           } catch (e) {
-            console.error("ÔØî [8/10] Error enviando cierre:", e.message);
+            console.error("❌ [8/10] Error enviando cierre:", e.message);
           }
         }
 
-        // Enviar botones despu├®s de la imagen+texto (si hay opciones)
+        // Enviar botones después de la imagen+texto (si hay opciones)
         if (opcionesLimpias) {
           try {
             await supabase.from("mensajes").insert({
               conversacion_id: convExist.id,
               remitente: "bot",
-              contenido: opcionesLimpias.map(o => "ÔÇó " + o).join("\n"),
+              contenido: opcionesLimpias.map(o => "• " + o).join("\n"),
               tipo: "texto",
             });
             await sleep(1000);
-            await enviarRespuesta(remitenteId, "Elige una opci├│n:", null, opcionesLimpias);
+            await enviarRespuesta(remitenteId, "Elige una opción:", null, opcionesLimpias);
           } catch (e) {
-            console.error("ÔØî [8/10] Error enviando opciones:", e.message);
+            console.error("❌ [8/10] Error enviando opciones:", e.message);
           }
         }
       } else {
-        // L├ôGICA DE ENV├ìO (Basada en la petici├│n del usuario: separar lugar de preguntas)
+        // LÓGICA DE ENVÍO (Basada en la petición del usuario: separar lugar de preguntas)
         const partesRespuesta = respuestaLimpia
           .split("\n\n")
           .filter((p) => p.trim() !== "");
@@ -1400,14 +1400,14 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
           }
         }
 
-        // Actualizar conversaci├│n
+        // Actualizar conversación
         await supabase
           .from("conversaciones")
           .update({ ultimo_mensaje: ultimaRespuesta.substring(0, 200) })
           .eq("id", convExist.id);
       }
     } catch (txtErr) {
-      console.error("ÔØî [8/10] Error en el flujo de mensajes:", txtErr.message, txtErr.stack);
+      console.error("❌ [8/10] Error en el flujo de mensajes:", txtErr.message, txtErr.stack);
     }
 
     // Actualizar ultimo_mensaje final (para flujos con imagen)
@@ -1420,12 +1420,12 @@ NOTA: El anuncio no est├í configurado a├║n en el ERP, pero el usuario vie
     return NextResponse.json({ estado: "procesado" }, { status: 200 });
     
     } finally {
-      // SIEMPRE liberar el lock al terminar (├®xito, pausa humano, o aborto)
+      // SIEMPRE liberar el lock al terminar (éxito, pausa humano, o aborto)
       await releaseLock(convExist.id);
     }
   } catch (error) {
-    console.error("ÔØî [FATAL] Error Webhook:", error.message);
-    console.error("ÔØî [FATAL] Stack:", error.stack);
+    console.error("❌ [FATAL] Error Webhook:", error.message);
+    console.error("❌ [FATAL] Stack:", error.stack);
     return NextResponse.json({ error: "Error interno" }, { status: 200 });
   }
 }
@@ -1471,7 +1471,7 @@ async function obtenerNombrePerfilMeta(id, plataforma) {
     // Si sigue fallando, simplemente retornamos Prospecto y no hacemos ruido
     const errMsg = e.response?.data?.error?.message || e.message;
     if (!errMsg.includes('IGSID not found')) {
-      console.warn(`ÔÜá´©Å Aviso: No se pudo obtener perfil de Meta para ${id} (${plataforma}):`, errMsg);
+      console.warn(`⚠️ Aviso: No se pudo obtener perfil de Meta para ${id} (${plataforma}):`, errMsg);
     }
   }
   return "Prospecto";
@@ -1503,7 +1503,7 @@ async function marcarEscribiendoMetaAPI(to, plataforma, receptorOriginal = "me")
       return;
     }
   } catch (e) {
-    console.error("ÔØî Error marcarEscribiendoMetaAPI:", e.response?.data?.error?.message || e.message);
+    console.error("❌ Error marcarEscribiendoMetaAPI:", e.response?.data?.error?.message || e.message);
   }
 }
 
@@ -1512,7 +1512,7 @@ async function enviarMensajeMessenger(to, mensaje, imagen, opciones, receptorOri
     const token = process.env.META_PAGE_TOKEN;
     const url = `https://graph.facebook.com/v20.0/me/messages`;
     
-    console.log(`­ƒÜÇ [PRE-SEND MS] Sender (Pagina): ${receptorOriginal} | Recipient: ${to} | Endpoint: ${url} | Token: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
+    console.log(`🚀 [PRE-SEND MS] Sender (Pagina): ${receptorOriginal} | Recipient: ${to} | Endpoint: ${url} | Token: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
 
     let payload = { 
       recipient: { id: String(to) }, 
@@ -1532,7 +1532,7 @@ async function enviarMensajeMessenger(to, mensaje, imagen, opciones, receptorOri
       }
     } else if (opciones && opciones.length > 0) {
       payload.message = {
-        text: (mensaje || "┬┐Qu├® prefieres?").substring(0, 1000),
+        text: (mensaje || "¿Qué prefieres?").substring(0, 1000),
         quick_replies: opciones.slice(0, 13).map((opt) => ({
           content_type: "text",
           title: opt.substring(0, 20),
@@ -1544,10 +1544,10 @@ async function enviarMensajeMessenger(to, mensaje, imagen, opciones, receptorOri
     }
 
     await axios.post(url, payload, { params: { access_token: token } });
-    console.log(`Ô£à Mensaje de Meta enviado con ├®xito a ${to} en messenger`);
+    console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en messenger`);
     return true;
   } catch (error) {
-    console.error(`ÔØî ERROR META API (messenger) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
+    console.error(`❌ ERROR META API (messenger) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
     return false;
   }
 }
@@ -1557,7 +1557,7 @@ async function enviarMensajeInstagram(to, mensaje, imagen, receptorOriginal) {
     const token = process.env.META_PAGE_TOKEN;
     const url = `https://graph.facebook.com/v20.0/me/messages`;
     
-    console.log(`­ƒÜÇ [PRE-SEND IG] Sender (Pagina): ${receptorOriginal} | Recipient: ${to} | Endpoint: ${url} | Token: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
+    console.log(`🚀 [PRE-SEND IG] Sender (Pagina): ${receptorOriginal} | Recipient: ${to} | Endpoint: ${url} | Token: ${token ? token.substring(0, 15) + '...' : 'MISSING'}`);
     
     let payload = { 
       recipient: { id: String(to) },
@@ -1579,10 +1579,10 @@ async function enviarMensajeInstagram(to, mensaje, imagen, receptorOriginal) {
     }
 
     await axios.post(url, payload, { params: { access_token: token } });
-    console.log(`Ô£à Mensaje de Meta enviado con ├®xito a ${to} en instagram`);
+    console.log(`✅ Mensaje de Meta enviado con éxito a ${to} en instagram`);
     return true;
   } catch (error) {
-    console.error(`ÔØî ERROR META API (instagram) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
+    console.error(`❌ ERROR META API (instagram) al enviar a ${to}:`, JSON.stringify(error.response?.data || error.message, null, 2));
     return false;
   }
 }
@@ -1602,7 +1602,7 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
         payload.type = "interactive";
         payload.interactive = {
           type: "button",
-          body: { text: (mensaje || "┬┐Qu├® prefieres?").substring(0, 1024) },
+          body: { text: (mensaje || "¿Qué prefieres?").substring(0, 1024) },
           action: {
             buttons: opciones.slice(0, 3).map((opt, i) => ({
               type: "reply",
@@ -1618,7 +1618,7 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
       await axios.post(url, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
       return true;
     } catch (e) {
-      console.error(`ÔØî ERROR META API (whatsapp) al enviar a ${to}:`, e.message);
+      console.error(`❌ ERROR META API (whatsapp) al enviar a ${to}:`, e.message);
       return false;
     }
   } else if (plataforma === "messenger") {
