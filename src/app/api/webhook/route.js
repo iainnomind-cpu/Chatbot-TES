@@ -5,6 +5,7 @@ import { consultarAlex } from "@/lib/alexIA";
 import { escalarAHumano } from "@/lib/prospectoSync";
 import { notificarEscalamientoAdmin, notificarCitaAdmin } from "@/lib/mailer";
 import { TIPOS_MEDIA_WHATSAPP, guardarMediaWhatsapp } from "@/lib/mediaWhatsapp";
+import { enviarPush } from "@/lib/enviarPush";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -28,19 +29,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // === HELPER: Enviar push a todos los asesores suscritos ===
 async function enviarPushAsesores({ title, body, url, tag }) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://erp-total-english.vercel.app';
-    const res = await fetch(`${baseUrl}/api/push/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, url, tag })
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('Push send error:', err);
-    } else {
-      const data = await res.json();
-      console.log('Push enviado:', data.enviadas);
-    }
+    const { enviadas, fallidas } = await enviarPush({ title, body, url, tag });
+    console.log('Push enviado:', enviadas, '| fallidas:', fallidas);
   } catch (e) {
     console.error('Error enviando push:', e.message);
   }

@@ -28,7 +28,8 @@ export default function DiagnosticoPush() {
       vapidKey: !!VAPID_PUBLIC_KEY,
       vapidKeyValor: VAPID_PUBLIC_KEY ? VAPID_PUBLIC_KEY.substring(0, 20) + '...' : 'NO DEFINIDA',
       dismissed: localStorage.getItem('push_prompt_dismissed') || 'no',
-      standalone: window.matchMedia('(display-mode: standalone)').matches,
+      // iOS reporta el modo app en navigator.standalone
+      standalone: window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true,
       plataforma: navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') ? 'iOS' :
                   navigator.userAgent.includes('Android') ? 'Android' : 'Desktop',
     }
@@ -93,7 +94,15 @@ export default function DiagnosticoPush() {
       })
       const dataPrueba = await resPrueba.json()
 
-      setResultado({ ok: true, msg: `Suscripcion guardada. Notificacion de prueba enviada a ${dataPrueba.enviadas} dispositivo(s).` })
+      if (!resPrueba.ok) {
+        setResultado({ ok: false, msg: 'Suscripcion guardada, pero el servidor no pudo enviar la prueba: ' + (dataPrueba.error || resPrueba.status) })
+        return
+      }
+
+      setResultado({
+        ok: dataPrueba.enviadas > 0,
+        msg: `Suscripcion guardada. Prueba enviada a ${dataPrueba.enviadas} dispositivo(s), fallaron ${dataPrueba.fallidas}.`
+      })
       setEstado(prev => ({ ...prev, permiso: 'granted' }))
     } catch (err) {
       setResultado({ ok: false, msg: err.message })

@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 
 export async function middleware(request) {
   // Allow public paths
-  const publicPaths = ['/login', '/api/auth', '/api/webhook', '/api/cron', '/api/upload', '/gracias', '/privacidad', '/eliminacion-datos']
+  // Los archivos de la PWA se piden sin cookie: si redirigen a /login, la app no se instala bien
+  const publicPaths = ['/login', '/api/auth', '/api/webhook', '/api/cron', '/api/upload', '/gracias', '/privacidad', '/eliminacion-datos', '/manifest.json', '/sw.js', '/icons/']
   const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
   if (isPublicPath) {
