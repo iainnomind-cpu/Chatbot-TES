@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/componentes/AuthProvider'
+import { convertirAMp3, tieneIdDeMeta } from '@/lib/mensajeria'
+
+const ETIQUETAS_ARCHIVO = ['[Imagen]', '[Video]', '[Audio]', '[Archivo]', '[Archivo adjunto]', '🖼️ Imagen', '🎥 Video', '📄 Documento', '🎤 Audio']
 
 // Emojis frecuentes para el picker rápido
 const EMOJIS_RAPIDOS = ['😊', '👍', '❤️', '🎉', '🙌', '😄', '🤔', '👋', '✅', '🔥', '💪', '📚', '⭐', '🎓', '💯', '😃', '🙏', '👏', '📝', '🏫', '📍', '📞', '✨', '🚀', '👌', '😎', '💬', '📢', '🇬🇧', '🇺🇸', '🗓️']
@@ -71,8 +74,18 @@ export default function PaginaInbox() {
   const [toggling, setToggling] = useState(false)
   const [mostrarClipMenu, setMostrarClipMenu] = useState(false)
   const [mensajeInicial, setMensajeInicial] = useState('¡Hola! Soy de Total English. ¿En qué podemos ayudarte?')
+  const [respondiendoA, setRespondiendoA] = useState(null)
+  const [grabando, setGrabando] = useState(false)
+  const [segundosGrabacion, setSegundosGrabacion] = useState(0)
+  const [audioBorrador, setAudioBorrador] = useState(null) // { blob, url }
+  const [enviandoAudio, setEnviandoAudio] = useState(false)
   const fileInputRef = useRef(null)
   const docInputRef = useRef(null)
+  const grabadorRef = useRef(null)
+  const grabacionCanceladaRef = useRef(false)
+  const temporizadorRef = useRef(null)
+  const borradoresRef = useRef({})
+  const nuevoMensajeRef = useRef('')
 
   const chatActivoRef = useRef(null)
   const cargarMensajesRef = useRef(null)
@@ -84,6 +97,34 @@ export default function PaginaInbox() {
   useEffect(() => {
     chatActivoRef.current = chatActivo
   }, [chatActivo])
+
+  useEffect(() => {
+    nuevoMensajeRef.current = nuevoMensaje
+    // El campo crece con el texto para poder revisar el mensaje completo antes de enviarlo
+    const campo = textareaRef.current
+    if (campo) {
+      campo.style.height = 'auto'
+      campo.style.height = `${Math.min(campo.scrollHeight, 160)}px`
+    }
+  }, [nuevoMensaje, grabando, audioBorrador])
+
+  // Cada chat conserva su borrador: nada de lo redactado debe llegar a otro prospecto
+  const idChatActivo = chatActivo?.id
+  useEffect(() => {
+    if (!idChatActivo) return
+    const borradores = borradoresRef.current
+    setNuevoMensaje(borradores[idChatActivo] || '')
+    return () => {
+      borradores[idChatActivo] = nuevoMensajeRef.current
+      setRespondiendoA(null)
+      grabacionCanceladaRef.current = true
+      if (grabadorRef.current?.state === 'recording') grabadorRef.current.stop()
+      setAudioBorrador(prev => {
+        if (prev) URL.revokeObjectURL(prev.url)
+        return null
+      })
+    }
+  }, [idChatActivo])
 
   const cargarMensajes = useCallback(async (id) => {
     if (!id) return
@@ -247,6 +288,117 @@ export default function PaginaInbox() {
     }
   }, [conversaciones, chatActivo]);
 
+  const iniciarGrabacion = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      alert('Este navegador no permite grabar audio.')
+      return
+    }
+    const idChat = chatActivo?.id
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const grabador = new MediaRecorder(stream)
+      const fragmentos = []
+      grabacionCanceladaRef.current = false
+      grabador.ondataavailable = (ev) => { if (ev.data.size > 0) fragmentos.push(ev.data) }
+      grabador.onstop = async () => {
+        stream.getTracks().forEach(pista => pista.stop())
+        clearInterval(temporizadorRef.current)
+        setGrabando(false)
+        if (grabacionCanceladaRef.current || chatActivoRef.current?.id !== idChat) return
+        try {
+          const blob = await convertirAMp3(new Blob(fragmentos, { type: grabador.mimeType }))
+          if (chatActivoRef.current?.id !== idChat) return
+          // Límite de WhatsApp para audios
+          if (blob.size > 16 * 1024 * 1024) {
+            alert('El audio es demasiado largo. El máximo permitido es 16 MB.')
+            return
+          }
+          setAudioBorrador({ blob, url: URL.createObjectURL(blob) })
+        } catch (err) {
+          console.error('Error procesando audio:', err)
+          alert('No se pudo procesar el audio. Intenta de nuevo.')
+        }
+      }
+      grabadorRef.current = grabador
+      grabador.start()
+      setSegundosGrabacion(0)
+      setGrabando(true)
+      temporizadorRef.current = setInterval(() => setSegundosGrabacion(s => s + 1), 1000)
+    } catch (err) {
+      console.error('Error iniciando grabación:', err)
+      alert('No se pudo usar el micrófono. Revisa que el navegador tenga permiso.')
+    }
+  }
+
+  const detenerGrabacion = (cancelar = false) => {
+    grabacionCanceladaRef.current = cancelar
+    if (grabadorRef.current?.state === 'recording') grabadorRef.current.stop()
+  }
+
+  const descartarAudio = () => {
+    if (audioBorrador) URL.revokeObjectURL(audioBorrador.url)
+    setAudioBorrador(null)
+  }
+
+  const enviarAudio = async () => {
+    if (!audioBorrador || enviandoAudio) return
+    try {
+      setEnviandoAudio(true)
+      const archivo = new File([audioBorrador.blob], `audio_${Date.now()}.mp3`, { type: 'audio/mpeg' })
+      const publicUrl = await subirAStorage(archivo)
+      const enviado = await enviarMensaje(null, publicUrl, 'audio')
+      if (enviado) descartarAudio()
+    } catch (err) {
+      console.error('Error enviando audio:', err)
+      alert('Error al enviar el audio: ' + (err.message || 'Intenta de nuevo'))
+    } finally {
+      setEnviandoAudio(false)
+    }
+  }
+
+  const irAMensaje = (id) => {
+    document.getElementById(`msj-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  const responderA = (msj) => {
+    setRespondiendoA(msj)
+    textareaRef.current?.focus()
+  }
+
+  const subirAStorage = async (file) => {
+    // PASO 1: Pedir una URL firmada al servidor (el archivo NO pasa por Vercel)
+    const signedRes = await fetch('/api/upload/signed-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      credentials: 'include',
+      body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+    })
+
+    if (!signedRes.ok) {
+      const errData = await signedRes.json()
+      throw new Error(errData.error || 'Error obteniendo URL de subida')
+    }
+
+    const { signedUrl, publicUrl } = await signedRes.json()
+
+    // PASO 2: Subir el archivo DIRECTAMENTE a Supabase desde el browser
+    // (sin pasar por Vercel — sin límite de tamaño de Vercel)
+    const uploadRes = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    })
+
+    if (!uploadRes.ok) {
+      throw new Error('Error al subir el archivo a Supabase')
+    }
+
+    return publicUrl
+  }
+
   const subirArchivo = async (e, tipo = 'imagen') => {
     e.preventDefault()
     const file = e.target.files?.[0]
@@ -262,37 +414,9 @@ export default function PaginaInbox() {
     try {
       setCargando(true)
 
-      // PASO 1: Pedir una URL firmada al servidor (el archivo NO pasa por Vercel)
-      const signedRes = await fetch('/api/upload/signed-url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        credentials: 'include',
-        body: JSON.stringify({ fileName: file.name, contentType: file.type }),
-      })
+      const publicUrl = await subirAStorage(file)
 
-      if (!signedRes.ok) {
-        const errData = await signedRes.json()
-        throw new Error(errData.error || 'Error obteniendo URL de subida')
-      }
-
-      const { signedUrl, publicUrl } = await signedRes.json()
-
-      // PASO 2: Subir el archivo DIRECTAMENTE a Supabase desde el browser
-      // (sin pasar por Vercel — sin límite de tamaño de Vercel)
-      const uploadRes = await fetch(signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-
-      if (!uploadRes.ok) {
-        throw new Error('Error al subir el archivo a Supabase')
-      }
-
-      // PASO 3: Enviar el mensaje con la URL pública
+      // Enviar el mensaje con la URL pública
       const tipoMensaje = file.type.startsWith('video/') ? 'video' : (tipo === 'documento' ? 'archivo' : 'imagen')
       await enviarMensaje(null, publicUrl, tipoMensaje)
       setMostrarClipMenu(false)
@@ -308,15 +432,31 @@ export default function PaginaInbox() {
 
   const enviarMensaje = async (e, fileUrl = null, tipoMsg = 'texto') => {
     if (e) e.preventDefault()
-    if ((!nuevoMensaje.trim() && !fileUrl) || !chatActivo) return
-    const texto = nuevoMensaje
-    setNuevoMensaje('')
+    if ((!nuevoMensaje.trim() && !fileUrl) || !chatActivo) return false
+    // Los audios no llevan texto: el borrador escrito se conserva
+    const esAudio = tipoMsg === 'audio'
+    const texto = esAudio ? '' : nuevoMensaje
+    const citado = respondiendoA
+    const idChat = chatActivo.id
+    // Si el envío falla, se devuelve lo redactado para no perderlo
+    const restaurar = () => {
+      if (chatActivoRef.current?.id !== idChat) {
+        if (!esAudio) borradoresRef.current[idChat] = texto
+        return
+      }
+      if (!esAudio) setNuevoMensaje(texto)
+      setRespondiendoA(citado)
+    }
+    if (!esAudio) setNuevoMensaje('')
+    setRespondiendoA(null)
     setMostrarEmojis(false)
     try {
       const payload = { to: chatActivo.id_plataforma, text: texto, plataforma: chatActivo.plataforma || 'whatsapp' }
+      if (citado) payload.respuesta_a_id = citado.id
       if (fileUrl) {
         if (tipoMsg === 'archivo') payload.tipo = 'document'
         else if (tipoMsg === 'video') payload.tipo = 'video'
+        else if (esAudio) payload.tipo = 'audio'
         else payload.tipo = 'image'
         payload.url_archivo = fileUrl
       }
@@ -332,11 +472,18 @@ export default function PaginaInbox() {
           cargarMensajes(chatActivo.id)
           cargarConversaciones()
         }, 500)
-      } else {
-        const err = await res.json()
-        console.error('Error enviando a Meta:', err)
+        return true
       }
-    } catch (err) { console.error('Excepción enviando:', err) }
+      const err = await res.json()
+      console.error('Error enviando a Meta:', err)
+      restaurar()
+      alert('No se pudo enviar el mensaje: ' + (err.error || 'Intenta de nuevo'))
+    } catch (err) {
+      console.error('Excepción enviando:', err)
+      restaurar()
+      alert('No se pudo enviar el mensaje. Revisa tu conexión e intenta de nuevo.')
+    }
+    return false
   }
 
 
@@ -825,11 +972,29 @@ export default function PaginaInbox() {
                   const esBot = msj.remitente === 'bot'
                   const esHumano = msj.remitente === 'humano' || msj.remitente === 'agente'
                   const soyYo = esBot || esHumano
+                  const esAudio = msj.tipo === 'audio'
+                  const esVideo = msj.tipo === 'video'
+                  const esArchivo = msj.tipo === 'archivo'
                   const esImagen = msj.tipo === 'imagen' || msj.url_archivo
+                  // Las etiquetas automáticas no aportan nada junto al archivo ya visible
+                  const pieDeArchivo = msj.contenido && !ETIQUETAS_ARCHIVO.includes(msj.contenido) ? msj.contenido : null
+                  const citado = msj.respuesta_a_id ? mensajes.find(m => m.id === msj.respuesta_a_id) : null
 
                   return (
-                    <div key={msj.id} className={`flex w-full ${soyYo ? 'justify-end' : 'justify-start'}`}>
+                    <div key={msj.id} id={`msj-${msj.id}`} className={`flex w-full ${soyYo ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[65%] relative group`}>
+                        {/* Solo se puede citar lo que tiene id real de Meta */}
+                        {tieneIdDeMeta(msj.id_mensaje_meta) && (
+                          <button
+                            type="button"
+                            onClick={() => responderA(msj)}
+                            title="Responder a este mensaje"
+                            aria-label="Responder a este mensaje"
+                            className={`absolute top-1/2 -translate-y-1/2 ${soyYo ? '-left-9' : '-right-9'} w-7 h-7 rounded-full bg-white/90 shadow-sm flex items-center justify-center text-slate-500 hover:text-[#1e3a8a] md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity`}
+                          >
+                            <span className="material-symbols-outlined text-[16px]">reply</span>
+                          </button>
+                        )}
                         {/* Bot/Human label */}
                         {esBot && (
                           <div className="flex items-center gap-1 mb-0.5">
@@ -860,11 +1025,40 @@ export default function PaginaInbox() {
                             </svg>
                           </div>
 
-                          {esImagen && msj.url_archivo ? (
+                          {citado && (
+                            <button
+                              type="button"
+                              onClick={() => irAMensaje(citado.id)}
+                              className="block w-full text-left mb-1.5 px-2 py-1 rounded bg-black/5 border-l-4 border-[#00a884] hover:bg-black/10 transition-colors"
+                            >
+                              <span className="block text-[11px] font-bold text-[#00a884]">{citado.remitente === 'usuario' ? 'Prospecto' : 'Tú'}</span>
+                              <span className="block text-[12px] text-slate-600 truncate">{citado.contenido}</span>
+                            </button>
+                          )}
+
+                          {esAudio && msj.url_archivo ? (
+                            <div className="flex flex-col gap-2">
+                              <audio controls preload="metadata" src={msj.url_archivo} className="max-w-full w-64" />
+                              {pieDeArchivo && <p className="whitespace-pre-wrap">{pieDeArchivo}</p>}
+                            </div>
+                          ) : esVideo && msj.url_archivo ? (
+                            <div className="flex flex-col gap-2">
+                              <video controls preload="metadata" src={msj.url_archivo} className="rounded-lg max-w-full h-auto" />
+                              {pieDeArchivo && <p className="whitespace-pre-wrap">{pieDeArchivo}</p>}
+                            </div>
+                          ) : esArchivo && msj.url_archivo ? (
+                            <div className="flex flex-col gap-2">
+                              <a href={msj.url_archivo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/5 hover:bg-black/10 transition-colors font-medium text-[#1e3a8a]">
+                                <span className="material-symbols-outlined text-[20px]">description</span>
+                                Abrir documento
+                              </a>
+                              {pieDeArchivo && <p className="whitespace-pre-wrap">{pieDeArchivo}</p>}
+                            </div>
+                          ) : esImagen && msj.url_archivo ? (
                             <div className="flex flex-col gap-2">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={msj.url_archivo} alt="Imagen" className="rounded-lg max-w-full h-auto cursor-pointer" onClick={() => window.open(msj.url_archivo)} />
-                              {msj.contenido && <p className="whitespace-pre-wrap">{msj.contenido}</p>}
+                              {pieDeArchivo && <p className="whitespace-pre-wrap">{pieDeArchivo}</p>}
                             </div>
                           ) : (
                             <p className="whitespace-pre-wrap">{msj.contenido}</p>
@@ -923,7 +1117,54 @@ export default function PaginaInbox() {
             </div>
           )}
 
-          {/* Message Input */}
+          {/* Mensaje que se está citando */}
+          {respondiendoA && (
+            <div className="px-4 pt-2 bg-[#f0f2f5] flex items-center gap-2">
+              <div className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-white border-l-4 border-[#00a884]">
+                <span className="block text-[11px] font-bold text-[#00a884]">
+                  Respondiendo a {respondiendoA.remitente === 'usuario' ? 'Prospecto' : 'ti'}
+                </span>
+                <span className="block text-[12px] text-slate-600 truncate">{respondiendoA.contenido}</span>
+              </div>
+              <button type="button" onClick={() => setRespondiendoA(null)} aria-label="Cancelar respuesta" className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-700 shrink-0">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+          )}
+
+          {/* Grabación de audio y revisión antes de enviar */}
+          {(grabando || audioBorrador) ? (
+            <div className="px-4 py-2.5 pb-safe bg-[#f0f2f5] flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => grabando ? detenerGrabacion(true) : descartarAudio()}
+                disabled={enviandoAudio}
+                title="Descartar audio"
+                aria-label="Descartar audio"
+                className="w-11 h-11 rounded-full flex items-center justify-center text-red-600 hover:bg-red-50 transition-colors shrink-0 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[24px]">delete</span>
+              </button>
+              {grabando ? (
+                <>
+                  <div className="flex-1 flex items-center gap-2 bg-white rounded-lg px-4 py-2.5 text-[14px] text-slate-700 shadow-sm">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                    Grabando {Math.floor(segundosGrabacion / 60)}:{String(segundosGrabacion % 60).padStart(2, '0')}
+                  </div>
+                  <button type="button" onClick={() => detenerGrabacion()} title="Terminar grabación" aria-label="Terminar grabación" className="w-11 h-11 rounded-full flex items-center justify-center text-[#1e3a8a] hover:bg-white transition-colors shrink-0">
+                    <span className="material-symbols-outlined text-[24px]">stop_circle</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <audio controls src={audioBorrador.url} className="flex-1 min-w-0 h-11" />
+                  <button type="button" onClick={enviarAudio} disabled={enviandoAudio} title="Enviar audio" aria-label="Enviar audio" className="w-11 h-11 rounded-full flex items-center justify-center text-[#1e3a8a] hover:bg-white transition-colors shrink-0 disabled:opacity-50">
+                    <span className={`material-symbols-outlined text-[24px] ${enviandoAudio ? 'animate-spin' : ''}`}>{enviandoAudio ? 'refresh' : 'send'}</span>
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
           <form onSubmit={enviarMensaje} className="px-4 py-2.5 pb-safe bg-[#f0f2f5] flex items-end gap-2 relative">
             
             {/* Clip Menu Popover */}
@@ -983,18 +1224,34 @@ export default function PaginaInbox() {
               ref={textareaRef}
               value={nuevoMensaje}
               onChange={(e) => setNuevoMensaje(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensaje(e); } }}
+              // Enter solo hace salto de línea para no enviar borradores por accidente
+              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviarMensaje(e); } }}
               placeholder="Escribe un mensaje"
-              className="flex-1 bg-white rounded-lg px-4 py-2.5 outline-none resize-none text-base md:text-[14px] text-[#111b21] placeholder:text-slate-400 focus:ring-0 border-none shadow-sm"
+              className="flex-1 bg-white rounded-lg px-4 py-2.5 outline-none resize-none overflow-y-auto text-base md:text-[14px] text-[#111b21] placeholder:text-slate-400 focus:ring-0 border-none shadow-sm"
               rows={1}
             />
-            <button
-              type="submit"
-              className="w-11 h-11 rounded-full flex items-center justify-center text-slate-500 hover:text-[#1e3a8a] transition-colors shrink-0"
-            >
-              <span className="material-symbols-outlined text-[24px]">{nuevoMensaje.trim() ? 'send' : 'mic'}</span>
-            </button>
+            {nuevoMensaje.trim() ? (
+              <button
+                type="submit"
+                title="Enviar (Ctrl+Enter)"
+                aria-label="Enviar mensaje"
+                className="w-11 h-11 rounded-full flex items-center justify-center text-slate-500 hover:text-[#1e3a8a] transition-colors shrink-0"
+              >
+                <span className="material-symbols-outlined text-[24px]">send</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={iniciarGrabacion}
+                title="Grabar audio"
+                aria-label="Grabar audio"
+                className="w-11 h-11 rounded-full flex items-center justify-center text-slate-500 hover:text-[#1e3a8a] transition-colors shrink-0"
+              >
+                <span className="material-symbols-outlined text-[24px]">mic</span>
+              </button>
+            )}
           </form>
+          )}
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center" style={{ backgroundColor: '#f0f2f5' }}>

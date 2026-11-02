@@ -1,14 +1,25 @@
 import { NextResponse } from 'next/server'
 import axios from 'axios'
 import { supabaseAdmin as supabase } from "@/lib/supabase"
+import { tieneIdDeMeta } from '@/lib/mensajeria'
 
 export async function POST(solicitud) {
   try {
     const cuerpo = await solicitud.json()
-    const { to, text, plataforma, tipo = 'text', nombrePlantilla = '', url_archivo } = cuerpo
-    
+    const { to, text, plataforma, tipo = 'text', nombrePlantilla = '', url_archivo, respuesta_a_id } = cuerpo
+
     if (!['whatsapp', 'messenger', 'instagram'].includes(plataforma)) {
       return NextResponse.json({ error: 'Plataforma no soportada' }, { status: 400 })
+    }
+
+    let idMetaCitado = null
+    if (respuesta_a_id) {
+      const { data: citado } = await supabase.from('mensajes')
+        .select('id_mensaje_meta').eq('id', respuesta_a_id).maybeSingle()
+      if (!tieneIdDeMeta(citado?.id_mensaje_meta)) {
+        return NextResponse.json({ error: 'Este mensaje no se puede citar' }, { status: 400 })
+      }
+      idMetaCitado = citado.id_mensaje_meta
     }
 
     const guardarEnBD = async (resData) => {
@@ -17,17 +28,25 @@ export async function POST(solicitud) {
           .select('id').eq('id_plataforma', to).eq('plataforma', plataforma).maybeSingle()
         
         if (conv) {
-          const contenidoMsj = text || (tipo === 'document' ? '📄 Documento' : tipo === 'video' ? '🎥 Video' : tipo === 'image' ? '🖼️ Imagen' : 'Plantilla enviada')
+          const contenidoMsj = text || (tipo === 'document' ? '📄 Documento' : tipo === 'video' ? '🎥 Video' : tipo === 'image' ? '🖼️ Imagen' : tipo === 'audio' ? '🎤 Audio' : 'Plantilla enviada')
+          // Guardar el id real de Meta para que este mensaje también se pueda citar después
+          const idMeta = resData?.messages?.[0]?.id || resData?.message_id || ('manual_' + Date.now())
           const { error: errIns } = await supabase.from('mensajes').insert({
             conversacion_id: conv.id,
             remitente: 'agente',
             contenido: contenidoMsj,
-            tipo: tipo === 'document' ? 'archivo' : (tipo === 'video' ? 'video' : (tipo === 'image' ? 'imagen' : 'texto')),
+            tipo: tipo === 'document' ? 'archivo' : (tipo === 'video' ? 'video' : (tipo === 'image' ? 'imagen' : (tipo === 'audio' ? 'audio' : 'texto'))),
             url_archivo: url_archivo || null,
-            id_mensaje_meta: 'manual_' + Date.now()
+            id_mensaje_meta: idMeta,
+            ...(respuesta_a_id ? { respuesta_a_id } : {})
           })
-          if (errIns) console.error('Error insertando mensaje manual:', errIns.message)
-          
+          if (errIns?.code === '23505') {
+            // El echo de Messenger/Instagram ya lo guardó: solo completar la cita
+            if (respuesta_a_id) await supabase.from('mensajes').update({ respuesta_a_id }).eq('id_mensaje_meta', idMeta)
+          } else if (errIns) {
+            console.error('Error insertando mensaje manual:', errIns.message)
+          }
+
           await supabase.from('conversaciones').update({ 
             ultimo_mensaje: contenidoMsj,
             actualizado_en: new Date().toISOString()
@@ -47,8 +66,12 @@ export async function POST(solicitud) {
         recipient: { id: to },
         message: {}
       };
-      
-      if (tipo === 'image' && url_archivo) {
+      if (idMetaCitado) payload.message.reply_to = { mid: idMetaCitado };
+
+      if (tipo === 'audio' && url_archivo) {
+        payload.message.attachment = { type: 'audio', payload: { url: url_archivo } };
+        if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
+      } else if (tipo === 'image' && url_archivo) {
         payload.message.attachment = { type: 'image', payload: { url: url_archivo } };
         if (plataforma === 'messenger') payload.message.attachment.payload.is_reusable = true;
       } else if (tipo === 'video' && url_archivo) {
@@ -79,8 +102,12 @@ export async function POST(solicitud) {
       messaging_product: 'whatsapp',
       to: to,
     }
+    if (idMetaCitado) payload.context = { message_id: idMetaCitado }
 
-    if (tipo === 'template' && nombrePlantilla) {
+    if (tipo === 'audio' && url_archivo) {
+      payload.type = 'audio'
+      payload.audio = { link: url_archivo }
+    } else if (tipo === 'template' && nombrePlantilla) {
       payload.type = 'template'
       payload.template = { name: nombrePlantilla, language: { code: 'es_MX' } }
     } else if (tipo === 'image' && url_archivo) {

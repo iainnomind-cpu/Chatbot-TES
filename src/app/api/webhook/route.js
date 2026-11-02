@@ -4,6 +4,7 @@ import { supabaseAdmin as supabase } from "@/lib/supabase";
 import { consultarAlex } from "@/lib/alexIA";
 import { escalarAHumano } from "@/lib/prospectoSync";
 import { notificarEscalamientoAdmin, notificarCitaAdmin } from "@/lib/mailer";
+import { TIPOS_MEDIA_WHATSAPP, guardarMediaWhatsapp } from "@/lib/mediaWhatsapp";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -151,6 +152,12 @@ export async function POST(solicitud) {
             "";
         } else if (msj.type === "button") {
           texto = msj.button?.text || "";
+        } else if (TIPOS_MEDIA_WHATSAPP[msj.type]) {
+          const { tipo, etiqueta } = TIPOS_MEDIA_WHATSAPP[msj.type];
+          tipoMensajeEntrante = tipo;
+          texto = msj[msj.type]?.caption || etiqueta;
+          urlArchivoEntrante = await guardarMediaWhatsapp(msj[msj.type]);
+          console.log('📎 [WA] Archivo entrante tipo:', msj.type, '| guardado:', !!urlArchivoEntrante);
         }
       }
     } else if (cuerpo.object === "page" || cuerpo.object === "instagram") {
@@ -467,8 +474,15 @@ export async function POST(solicitud) {
     // --- SKIP BOT: SI EL MENSAJE ES SOLO UN ARCHIVO/IMAGEN SIN TEXTO REAL ---
     // El bot no puede "leer" imagenes, asi que solo la guardamos y no respondemos
     const etiquetasSoloArchivo = ["[Imagen]", "[Video]", "[Audio]", "[Archivo]", "[Archivo adjunto]"];
-    if (urlArchivoEntrante && (!texto || etiquetasSoloArchivo.includes(texto))) {
+    if ((urlArchivoEntrante || tipoMensajeEntrante !== "texto") && (!texto || etiquetasSoloArchivo.includes(texto))) {
       console.log(`[7/10] Archivo/imagen recibida sin texto real - guardada en Inbox sin respuesta del bot.`);
+      // Como el bot no contesta, avisar a los asesores para que el prospecto no quede sin respuesta
+      await enviarPushAsesores({
+        title: 'Archivo de ' + (nombrePerfil !== 'Prospecto' ? nombrePerfil : 'prospecto'),
+        body: texto || '[Archivo adjunto]',
+        url: '/inbox?id=' + convExist.id,
+        tag: 'msg-' + convExist.id
+      });
       return NextResponse.json({ estado: "imagen_guardada" }, { status: 200 });
     }
     
