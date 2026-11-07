@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { cambiarEstadoProspecto } from '@/lib/prospectoSync'
 import { useNotifications } from '@/componentes/NotificationProvider'
 import ModalFormulario from '@/componentes/ModalFormulario'
+import ModalEnviarMensaje from '@/componentes/ModalEnviarMensaje'
 
 const ESTADOS_BASE = ['nuevo', 'contactado', 'en_proceso', 'agendado']
 const SIN_ANUNCIO = '__sin_anuncio__'
@@ -33,6 +34,8 @@ function ContenidoProspectos() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [prospectoEditando, setProspectoEditando] = useState(null)
   const [vista, setVista] = useState('tabla') // Lista por defecto
+  const [idsMarcados, setIdsMarcados] = useState([])
+  const [destinatarios, setDestinatarios] = useState(null) // Prospectos del modal de envío
   const { setUltimoToast } = useNotifications()
 
   const camposProspecto = [
@@ -330,12 +333,37 @@ function ContenidoProspectos() {
           )}
         </div>
 
+        {idsMarcados.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl shrink-0">
+            <span className="text-sm font-bold text-blue-900">{idsMarcados.length} seleccionado(s)</span>
+            <button
+              onClick={() => setDestinatarios(prospectos.filter(p => idsMarcados.includes(p.id)))}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#1e3a8a] text-white text-xs font-bold rounded-lg hover:bg-blue-800 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">send</span>
+              Enviar mensaje o plantilla
+            </button>
+            <button onClick={() => setIdsMarcados([])} className="text-xs font-bold text-blue-700 hover:underline">
+              Quitar selección
+            </button>
+          </div>
+        )}
+
         {vista === 'tabla' ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 overflow-hidden flex flex-col">
           <div className="overflow-y-auto flex-1">
             <table className="w-full min-w-[640px] text-left border-collapse">
               <thead className="bg-[#f8f9fa] sticky top-0 z-10 border-b border-slate-200">
                 <tr>
+                  <th className="pl-6 py-4 w-8">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar todos los filtrados"
+                      checked={prospectosFiltrados.length > 0 && prospectosFiltrados.every(p => idsMarcados.includes(p.id))}
+                      onChange={e => setIdsMarcados(e.target.checked ? prospectosFiltrados.map(p => p.id) : [])}
+                      className="w-4 h-4 accent-blue-700 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Alumno (Prospecto)</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Contacto Origen</th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Curso / Interés</th>
@@ -347,15 +375,24 @@ function ContenidoProspectos() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {cargando ? (
-                  <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400"><span className="material-symbols-outlined animate-spin align-middle mr-2">refresh</span>Cargando...</td></tr>
+                  <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-400"><span className="material-symbols-outlined animate-spin align-middle mr-2">refresh</span>Cargando...</td></tr>
                 ) : prospectosFiltrados.length === 0 ? (
-                  <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">No hay prospectos.</td></tr>
+                  <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-400">No hay prospectos.</td></tr>
                 ) : prospectosFiltrados.map(p => (
-                  <tr 
-                    key={p.id} 
+                  <tr
+                    key={p.id}
                     onClick={() => setProspectoSeleccionado(p)}
-                    className={`hover:bg-blue-50/50 cursor-pointer transition-colors ${prospectoSeleccionado?.id === p.id ? 'bg-blue-50/80' : ''}`}
+                    className={`hover:bg-blue-50/50 cursor-pointer transition-colors ${prospectoSeleccionado?.id === p.id || idsMarcados.includes(p.id) ? 'bg-blue-50/80' : ''}`}
                   >
+                    <td className="pl-6 py-4" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Seleccionar a ${p.nombre_alumno || p.nombre}`}
+                        checked={idsMarcados.includes(p.id)}
+                        onChange={() => setIdsMarcados(prev => prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id])}
+                        className="w-4 h-4 accent-blue-700 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <div className="font-bold text-[#191c1d]">
                         {p.nombre_alumno || p.nombre}
@@ -597,6 +634,13 @@ function ContenidoProspectos() {
                     Ir al Inbox
                   </button>
                 )}
+                <button
+                  onClick={() => setDestinatarios([prospectoSeleccionado])}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[14px]">send</span>
+                  Enviar mensaje
+                </button>
                 <button 
                   onClick={() => { setProspectoEditando(prospectoSeleccionado); setModalAbierto(true); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold rounded-lg transition-colors"
@@ -733,6 +777,13 @@ function ContenidoProspectos() {
         </div>
       </>
     )}
+
+      {destinatarios && (
+        <ModalEnviarMensaje
+          prospectos={destinatarios}
+          alCerrar={() => { setDestinatarios(null); cargarProspectos() }}
+        />
+      )}
 
       {/* Modal CRUD */}
       <ModalFormulario

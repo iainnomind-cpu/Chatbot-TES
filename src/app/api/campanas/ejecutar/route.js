@@ -41,11 +41,16 @@ export async function POST(solicitud) {
     if (cuerpoSolicitud.prospectos_ids && Array.isArray(cuerpoSolicitud.prospectos_ids) && cuerpoSolicitud.prospectos_ids.length > 0) {
       // Audiencia Dinámica temporal (desde UI rápida)
       console.log('📌 Usando prospectos_ids personalizados');
-      const { data: pDatos, error: errP } = await supabase
+      let query = supabase
         .from('prospectos')
         .select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal')
-        .in('id', cuerpoSolicitud.prospectos_ids)
-        .eq('canal', campana.canal || 'whatsapp');
+        .in('id', cuerpoSolicitud.prospectos_ids);
+      // Los elegidos a mano pueden venir de importaciones con otro canal (ej. "importacion"):
+      // para WhatsApp basta con que no sean IDs de Messenger/Instagram
+      query = (campana.canal || 'whatsapp') === 'whatsapp'
+        ? query.or('canal.is.null,canal.not.in.(messenger,instagram)')
+        : query.eq('canal', campana.canal);
+      const { data: pDatos, error: errP } = await query;
         
       if (errP) return NextResponse.json({ error: 'Error obteniendo audiencia: ' + errP.message }, { status: 500 });
       prospectos = pDatos || [];

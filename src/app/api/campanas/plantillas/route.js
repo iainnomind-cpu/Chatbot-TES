@@ -32,6 +32,7 @@ export async function GET(request) {
       language: t.language,
       status: t.status, // ej. APPROVED, PENDING, REJECTED
       category: t.category,
+      parameter_format: t.parameter_format,
       components: t.components
     }))
 

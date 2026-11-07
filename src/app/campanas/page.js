@@ -33,6 +33,10 @@ export default function PaginaCampanas() {
     canal: 'Todos'
   })
   const [prospectosSeleccionados, setProspectosSeleccionados] = useState([])
+  const [numerosImportar, setNumerosImportar] = useState('')
+  const [cursoImportar, setCursoImportar] = useState('')
+  const [importando, setImportando] = useState(false)
+  const [resultadoImportar, setResultadoImportar] = useState(null)
 
   // Estados para Anuncios CTWA
   const [anuncios, setAnuncios] = useState([])
@@ -190,6 +194,41 @@ export default function PaginaCampanas() {
     if (filtrosAud.canal !== 'Todos' && (p.canal || '').toLowerCase() !== filtrosAud.canal.toLowerCase()) return false;
     return true;
   })
+
+  // Números capturados a mano (muestreos): se dan de alta como prospectos y quedan seleccionados
+  const importarNumeros = async () => {
+    if (!numerosImportar.trim() || importando) return
+    setImportando(true)
+    setResultadoImportar(null)
+    try {
+      const resp = await fetch('/api/prospectos/importar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineas: numerosImportar, curso_interes: cursoImportar })
+      })
+      const datos = await resp.json()
+      if (!resp.ok) {
+        setResultadoImportar({ ok: false, msg: datos.error || 'No se pudieron agregar los números', invalidos: datos.invalidos || [] })
+        return
+      }
+      const respPros = await fetch('/api/prospectos?t=' + Date.now())
+      const pros = await respPros.json()
+      setProspectosAud(Array.isArray(pros) ? pros : [])
+      // Quitar filtros para que los recién agregados se vean en la tabla
+      setFiltrosAud({ estado: 'Todos', curso: 'Todos', edad_min: '', edad_max: '', flexibilidad: 'Indistinto', score: 'Todos', canal: 'Todos' })
+      setProspectosSeleccionados(datos.ids)
+      setNumerosImportar(datos.invalidos.join('\n'))
+      setResultadoImportar({
+        ok: true,
+        msg: `${datos.nuevos} nuevo(s) y ${datos.existentes} que ya existían quedaron seleccionados. Ahora pulsa "Lanzar" y elige la plantilla.`,
+        invalidos: datos.invalidos
+      })
+    } catch (e) {
+      setResultadoImportar({ ok: false, msg: 'Error de conexión: ' + e.message, invalidos: [] })
+    } finally {
+      setImportando(false)
+    }
+  }
 
   // Helpers de selección
   const toggleSeleccion = (id) => {
@@ -862,6 +901,49 @@ export default function PaginaCampanas() {
                             <input type="number" placeholder="Ej: 18" className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 transition-all font-semibold" value={filtrosAud.edad_max} onChange={e => { setFiltrosAud({...filtrosAud, edad_max: e.target.value}); setProspectosSeleccionados([]); }} />
                           </div>
                         </div>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
+                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-1 flex items-center gap-2">
+                          <span className="material-symbols-outlined text-blue-600">person_add</span>
+                          Agregar números
+                        </h3>
+                        <p className="text-xs text-slate-500 mb-4">
+                          Para personas que dejaron su número (muestreos, ferias). Uno por línea, con nombre opcional: <span className="font-mono">3121234567, Ana López</span>. WhatsApp solo permite escribirles primero con una plantilla aprobada.
+                        </p>
+                        <textarea
+                          value={numerosImportar}
+                          onChange={e => setNumerosImportar(e.target.value)}
+                          rows={5}
+                          placeholder={'3121234567, Ana López\n3129876543'}
+                          aria-label="Números a agregar"
+                          className="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 font-mono"
+                        />
+                        <div className="flex flex-wrap items-center gap-3 mt-3">
+                          <input
+                            value={cursoImportar}
+                            onChange={e => setCursoImportar(e.target.value)}
+                            placeholder="Curso de interés (opcional)"
+                            aria-label="Curso de interés"
+                            className="flex-1 min-w-[180px] border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100"
+                          />
+                          <button
+                            onClick={importarNumeros}
+                            disabled={!numerosImportar.trim() || importando}
+                            className="px-5 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-40 flex items-center gap-2"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">{importando ? 'progress_activity' : 'playlist_add'}</span>
+                            {importando ? 'Agregando...' : 'Agregar y seleccionar'}
+                          </button>
+                        </div>
+                        {resultadoImportar && (
+                          <div className={`mt-3 p-3 rounded-xl text-xs font-medium ${resultadoImportar.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                            {resultadoImportar.msg}
+                            {resultadoImportar.invalidos.length > 0 && (
+                              <p className="mt-1">No se reconocieron {resultadoImportar.invalidos.length} línea(s); quedaron en el cuadro para corregirlas.</p>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {prospectosFiltrados.length > 0 && (

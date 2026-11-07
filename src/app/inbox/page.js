@@ -604,20 +604,16 @@ export default function PaginaInbox() {
       
       if (cError) throw cError
 
-      // 4. Enviar el mensaje inicial real por WhatsApp
-      await fetch('/api/enviar-mensaje', {
+      // 4. Enviar el mensaje inicial real por WhatsApp (el servidor lo guarda si Meta lo acepta)
+      const resEnvio = await fetch('/api/enviar-mensaje', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: telLimpio, text: mensajeInicial, plataforma: 'whatsapp' })
       })
-
-      // 5. Guardar el mensaje en la base de datos
-      await supabase.from('mensajes').insert({
-        conversacion_id: nuevaC.id,
-        remitente: 'agente',
-        contenido: mensajeInicial,
-        tipo: 'texto'
-      })
+      if (!resEnvio.ok) {
+        await supabase.from('conversaciones').update({ ultimo_mensaje: null }).eq('id', nuevaC.id)
+        alert('WhatsApp no entregó el mensaje. Si esta persona no te ha escrito en las últimas 24 horas, solo se le puede escribir primero con una plantilla: ve a Campañas → Audiencias → Agregar números.')
+      }
 
       await cargarConversaciones()
       if (nuevaC) {
