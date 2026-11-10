@@ -574,7 +574,23 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 `;
     }
 
-    const historialFormat = historialCronologico.map((m) => {
+    // Si el prospecto escribió mientras Alex enviaba su respuesta anterior (imagen, botones...),
+    // su mensaje queda en medio de esas burbujas y el modelo responde como si no lo hubiera leído.
+    // Se mueven al final los mensajes del prospecto que aún no tienen respuesta.
+    const idxActual = historialCronologico.findIndex((m) => m.id_mensaje_meta === mensajeId);
+    let historialOrdenado = historialCronologico;
+    if (idxActual > -1) {
+      let ultimoNoUsuario = idxActual - 1;
+      while (ultimoNoUsuario >= 0 && historialCronologico[ultimoNoUsuario].remitente === "usuario") ultimoNoUsuario--;
+      const cola = historialCronologico.slice(ultimoNoUsuario + 1);
+      historialOrdenado = [
+        ...historialCronologico.slice(0, ultimoNoUsuario + 1),
+        ...cola.filter((m) => m.remitente !== "usuario"),
+        ...cola.filter((m) => m.remitente === "usuario"),
+      ];
+    }
+
+    const historialFormat = historialOrdenado.map((m) => {
       if (m.remitente === "usuario") {
         return { role: "user", content: m.contenido };
       }
@@ -808,7 +824,26 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
       plataforma,
       tablaDinamicaCursos,
       configBot,
+      // Diagnóstico solo con anuncio de diagnóstico o edad 15-21 ya registrada
+      anuncioContexto.includes("FLUJO_CAMPANA: DIAGNOSTICO") ||
+        (Number(freshPros.edad) >= 15 && Number(freshPros.edad) <= 21),
     );
+
+    // Si el prospecto escribió otra vez mientras Alex pensaba, esta respuesta ya está vieja:
+    // se descarta y el webhook del mensaje nuevo responde a todo junto (evita respuestas dobles)
+    const { data: masReciente } = await supabase
+      .from("mensajes")
+      .select("id_mensaje_meta, tipo")
+      .eq("conversacion_id", convExist.id)
+      .eq("remitente", "usuario")
+      .order("creado_en", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (masReciente && masReciente.id_mensaje_meta !== mensajeId && masReciente.tipo === "texto") {
+      console.log(`⏭️ [DEBOUNCE] Llegó un mensaje nuevo mientras Alex respondía ${mensajeId}. Se descarta esta respuesta.`);
+      return NextResponse.json({ estado: "reemplazado_por_nuevo" }, { status: 200 });
+    }
 
     // Evitar bucles - comparar con los últimos 2 mensajes del bot
     const mensajesBot = (historialRaw || []).filter(
