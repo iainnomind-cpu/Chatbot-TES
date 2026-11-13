@@ -5,6 +5,24 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/componentes/AuthProvider'
 import { convertirAMp3, tieneIdDeMeta } from '@/lib/mensajeria'
 
+// Estado real que reporta WhatsApp. Antes la palomita azul solo indicaba que un asesor abrió el chat.
+const PALOMITAS = {
+  failed:    { icono: 'error',    clase: 'text-red-500',      titulo: 'No entregado' },
+  read:      { icono: 'done_all', clase: 'text-[#53bdeb]',    titulo: 'Leído por el prospecto' },
+  delivered: { icono: 'done_all', clase: 'text-slate-400/80', titulo: 'Entregado' },
+  sent:      { icono: 'done',     clase: 'text-slate-400/80', titulo: 'Enviado' },
+}
+function PalomitasEntrega({ msj }) {
+  const estado = PALOMITAS[msj.estado_entrega] || { icono: 'done', clase: 'text-slate-400/60', titulo: 'Sin confirmación de WhatsApp' }
+  const titulo = msj.estado_entrega === 'failed' ? `No entregado: ${msj.error_entrega || 'motivo desconocido'}` : estado.titulo
+  return (
+    <span className="inline-flex items-center gap-0.5" title={titulo} aria-label={titulo}>
+      <span className={`material-symbols-outlined text-[14px] ${estado.clase}`}>{estado.icono}</span>
+      {msj.estado_entrega === 'failed' && <span className="text-[9px] font-bold text-red-500">No entregado</span>}
+    </span>
+  )
+}
+
 const ETIQUETAS_ARCHIVO = ['[Imagen]', '[Video]', '[Audio]', '[Archivo]', '[Archivo adjunto]', '🖼️ Imagen', '🎥 Video', '📄 Documento', '🎤 Audio']
 
 // Emojis frecuentes para el picker rápido
@@ -836,9 +854,9 @@ export default function PaginaInbox() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    {/* Double check for sent messages */}
+                    {/* El estado real se ve dentro del chat; aquí no se afirma "leído" */}
                     {conv.ultimo_mensaje && !conv.ultimo_mensaje.startsWith('[') && (
-                      <span className="material-symbols-outlined text-[14px] text-[#53bdeb] shrink-0">done_all</span>
+                      <span className="material-symbols-outlined text-[14px] text-slate-400/70 shrink-0">done_all</span>
                     )}
                     <p className={`text-[12.5px] truncate ${unreadCount > 0 ? 'text-slate-700 font-medium' : 'text-slate-500'}`}>{conv.ultimo_mensaje || 'Conversación vacía'}</p>
                   </div>
@@ -1063,11 +1081,7 @@ export default function PaginaInbox() {
                           {/* Timestamp + checks */}
                           <span className={`text-[10px] float-right ml-3 mt-1 flex items-center gap-0.5 ${soyYo ? 'text-slate-500/70' : 'text-slate-400'}`}>
                             {new Date(msj.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            {soyYo && (
-                              <span className={`material-symbols-outlined text-[14px] ${msj.leido ? 'text-[#53bdeb]' : 'text-slate-400/60'}`}>
-                                done_all
-                              </span>
-                            )}
+                            {soyYo && <PalomitasEntrega msj={msj} />}
                           </span>
                         </div>
                       </div>

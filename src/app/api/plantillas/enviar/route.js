@@ -22,7 +22,8 @@ async function guardarEnInbox(prospecto, texto, idMeta) {
   }
   if (!conv) return
   await supabase.from('mensajes').insert({
-    conversacion_id: conv.id, remitente: 'agente', tipo: 'texto', contenido: texto, id_mensaje_meta: idMeta
+    conversacion_id: conv.id, remitente: 'agente', tipo: 'texto', contenido: texto, id_mensaje_meta: idMeta,
+    ...(idMeta.startsWith('wamid.') ? { wamid: idMeta } : {}), estado_entrega: 'sent'
   })
   await supabase.from('conversaciones').update({
     ultimo_mensaje: texto.substring(0, 200), actualizado_en: new Date().toISOString()

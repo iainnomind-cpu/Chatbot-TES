@@ -7,6 +7,7 @@ import { notificarEscalamientoAdmin, notificarCitaAdmin } from "@/lib/mailer";
 import { TIPOS_MEDIA_WHATSAPP, guardarMediaWhatsapp } from "@/lib/mediaWhatsapp";
 import { enviarPush } from "@/lib/enviarPush";
 import { quitarOfertasFueraDeEdad } from "@/lib/ofertasCursos";
+import { registrarEstadoEntrega, marcarEnvio } from "@/lib/entregas";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -101,13 +102,19 @@ export async function POST(solicitud) {
       const valor = cambios?.value;
 
       if (valor?.statuses && valor.statuses.length > 0) {
-        const st = valor.statuses[0]
-        if (st.status === 'failed') {
-          const err = st.errors?.[0] || {}
-          console.error(`❌ [WA-STATUS] ENTREGA FALLIDA — wamid: ${st.id} | recipient: ${st.recipient_id}`)
-          console.error(`❌ [WA-STATUS] Error code: ${err.code} | title: ${err.title} | message: ${err.message} | error_data: ${JSON.stringify(err.error_data || {})}`)
-        } else {
-          console.log(`📬 [WA-STATUS] Estado: ${st.status} | wamid: ${st.id} | recipient: ${st.recipient_id}`)
+        for (const st of valor.statuses) {
+          if (st.status === 'failed') {
+            const err = st.errors?.[0] || {}
+            console.error(`❌ [WA-STATUS] ENTREGA FALLIDA — wamid: ${st.id} | recipient: ${st.recipient_id}`)
+            console.error(`❌ [WA-STATUS] Error code: ${err.code} | title: ${err.title} | message: ${err.message} | error_data: ${JSON.stringify(err.error_data || {})}`)
+          } else {
+            console.log(`📬 [WA-STATUS] Estado: ${st.status} | wamid: ${st.id} | recipient: ${st.recipient_id}`)
+          }
+          // Guardar el estado en el mensaje para que el inbox muestre palomitas reales
+          await registrarEstadoEntrega(supabase, st)
+        }
+        if (!valor.messages || valor.messages.length === 0) {
+          return NextResponse.json({ estado: "status_procesado" }, { status: 200 });
         }
       }
 
@@ -245,6 +252,17 @@ export async function POST(solicitud) {
 
     let enviarRespuesta = async (to, mensaje, imagen = null, opciones = null) => {
       return await enviarMensajeMetaAPI(to, mensaje, imagen, opciones, plataforma, receptorOriginal);
+    };
+
+    // Guarda un mensaje del bot y devuelve su id para registrar después el resultado del envío
+    const guardarMensajeBot = async (registro) => {
+      const { data, error: errGuardar } = await supabase
+        .from("mensajes")
+        .insert({ remitente: "bot", tipo: "texto", ...registro })
+        .select("id")
+        .maybeSingle();
+      if (errGuardar) console.error("❌ Error guardando mensaje del bot:", errGuardar.message);
+      return data?.id || null;
     };
 
     let marcarEscribiendoWrapper = async (to) => {
@@ -865,13 +883,8 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
       // En vez de ignorar, enviamos un mensaje genérico de avance
       const respuestaAlternativa =
         "¡Gracias por tu respuesta! 😊 ¿Me puedes dar un poco más de detalle para poder ayudarte mejor?";
-      await supabase.from("mensajes").insert({
-        conversacion_id: convExist.id,
-        remitente: "bot",
-        contenido: respuestaAlternativa,
-        tipo: "texto",
-      });
-      await enviarRespuesta(remitenteId, respuestaAlternativa);
+      const idAlternativa = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: respuestaAlternativa });
+      await marcarEnvio(supabase, idAlternativa, await enviarRespuesta(remitenteId, respuestaAlternativa));
       return NextResponse.json({ estado: "reformulado" }, { status: 200 });
     }
 
@@ -918,16 +931,12 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         ? respuesta.trim()
         : "Voy a transferir tu solicitud ahora mismo con uno de nuestros asesores.\n\nRevisará tu caso para darte una respuesta personalizada en unos momentos.\n\nUn asesor se pondrá en contacto contigo a la brevedad por este medio para darte seguimiento puntual. ¡Gracias por tu paciencia!";
 
-      await enviarRespuesta(remitenteId, msjEscalamiento);
+      const envioEscalamiento = await enviarRespuesta(remitenteId, msjEscalamiento);
       // Dividir por saltos de línea para simular el envío de varios mensajes
       const partesEscalamiento = msjEscalamiento.split("\n\n");
       for (let i = 0; i < partesEscalamiento.length; i++) {
-        await supabase.from("mensajes").insert({
-          conversacion_id: convExist.id,
-          remitente: "bot",
-          contenido: partesEscalamiento[i],
-          tipo: "texto",
-        });
+        const idParte = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: partesEscalamiento[i] });
+        await marcarEnvio(supabase, idParte, envioEscalamiento);
       }
       await supabase
         .from("conversaciones")
@@ -1323,17 +1332,13 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         // Enviar "Un momento..." como texto separado si existe
         if (textoIntro) {
           // Guardar en DB primero
-          await supabase.from("mensajes").insert({
-            conversacion_id: convExist.id,
-            remitente: "bot",
-            contenido: textoIntro,
-            tipo: "texto",
-          });
+          const idIntro = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: textoIntro });
           // Luego enviar por Meta
           try {
             await marcarEscribiendoWrapper(remitenteId);
             await sleep(1500);
             const introOk = await enviarRespuesta(remitenteId, textoIntro);
+            await marcarEnvio(supabase, idIntro, introOk);
             console.log("📤 [8/10] Intro enviada:", introOk ? "OK" : "FALLÓ");
           } catch (e) {
             console.error("❌ [8/10] Error enviando intro:", e.message);
@@ -1342,9 +1347,8 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
 
         if (imgUrl) {
           // 1. Guardar imagen en DB (sin texto, mensaje independiente)
-          await supabase.from("mensajes").insert({
+          const idImagen = await guardarMensajeBot({
             conversacion_id: convExist.id,
-            remitente: "bot",
             contenido: "[Imagen del programa]",
             tipo: "imagen",
             url_archivo: imgUrl,
@@ -1354,6 +1358,7 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
             await marcarEscribiendoWrapper(remitenteId);
             await sleep(1500);
             const imgOk = await enviarRespuesta(remitenteId, null, imgUrl);
+            await marcarEnvio(supabase, idImagen, imgOk);
             console.log("🖼️ [8/10] Imagen enviada por Meta (separada):", imgOk ? "OK" : "FALLÓ");
           } catch (e) {
             console.error("❌ [8/10] Error enviando imagen:", e.message);
@@ -1362,17 +1367,13 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
 
         if (textoCaption) {
           // 2. Guardar texto en DB (después de la imagen)
-          await supabase.from("mensajes").insert({
-            conversacion_id: convExist.id,
-            remitente: "bot",
-            contenido: textoCaption,
-            tipo: "texto",
-          });
+          const idCaption = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: textoCaption });
           // Enviar texto por Meta (separado de la imagen)
           try {
             await marcarEscribiendoWrapper(remitenteId);
             await sleep(2000);
             const txtOk = await enviarRespuesta(remitenteId, textoCaption);
+            await marcarEnvio(supabase, idCaption, txtOk);
             console.log("📤 [8/10] Texto descriptivo enviado:", txtOk ? "OK" : "FALLÓ");
           } catch (e) {
             console.error("❌ [8/10] Error enviando texto:", e.message);
@@ -1382,14 +1383,9 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         // Si hay texto de cierre (opcional, si se separó en 3 partes), se envía al final
         if (typeof textoCierre === 'string' && textoCierre.trim()) {
           try {
-            await supabase.from("mensajes").insert({
-              conversacion_id: convExist.id,
-              remitente: "bot",
-              contenido: textoCierre.trim(),
-              tipo: "texto",
-            });
+            const idCierre = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: textoCierre.trim() });
             await sleep(1500);
-            await enviarRespuesta(remitenteId, textoCierre);
+            await marcarEnvio(supabase, idCierre, await enviarRespuesta(remitenteId, textoCierre));
           } catch (e) {
             console.error("❌ [8/10] Error enviando cierre:", e.message);
           }
@@ -1398,14 +1394,9 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         // Enviar botones después de la imagen+texto (si hay opciones)
         if (opcionesLimpias) {
           try {
-            await supabase.from("mensajes").insert({
-              conversacion_id: convExist.id,
-              remitente: "bot",
-              contenido: opcionesLimpias.map(o => "• " + o).join("\n"),
-              tipo: "texto",
-            });
+            const idOpciones = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: opcionesLimpias.map(o => "• " + o).join("\n") });
             await sleep(1000);
-            await enviarRespuesta(remitenteId, "Elige una opción:", null, opcionesLimpias);
+            await marcarEnvio(supabase, idOpciones, await enviarRespuesta(remitenteId, "Elige una opción:", null, opcionesLimpias));
           } catch (e) {
             console.error("❌ [8/10] Error enviando opciones:", e.message);
           }
@@ -1422,25 +1413,19 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
           if (!burbuja) continue;
 
           // Guardar en DB
-          await supabase.from("mensajes").insert({
-            conversacion_id: convExist.id,
-            remitente: "bot",
-            contenido: burbuja,
-            tipo: "texto"
-          });
+          const idBurbuja = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: burbuja });
           ultimaRespuesta = burbuja;
 
           // Enviar por Meta
           await marcarEscribiendoWrapper(remitenteId);
           const delay = Math.min(Math.max(burbuja.length * 10, 800), 2500);
           await sleep(delay);
-          
+
           const esUltima = i === partesRespuesta.length - 1;
-          if (esUltima && opcionesLimpias) {
-            await enviarRespuesta(remitenteId, burbuja, null, opcionesLimpias);
-          } else {
-            await enviarRespuesta(remitenteId, burbuja);
-          }
+          const envioBurbuja = esUltima && opcionesLimpias
+            ? await enviarRespuesta(remitenteId, burbuja, null, opcionesLimpias)
+            : await enviarRespuesta(remitenteId, burbuja);
+          await marcarEnvio(supabase, idBurbuja, envioBurbuja);
         }
 
         // Actualizar conversación
@@ -1658,10 +1643,11 @@ async function enviarMensajeMetaAPI(to, mensaje, imagen = null, opciones = null,
         payload.text = { body: mensaje };
       }
 
-      await axios.post(url, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
-      return true;
+      const res = await axios.post(url, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
+      // Devuelve el wamid (truthy) para cruzarlo después con los estados de entrega
+      return res.data?.messages?.[0]?.id || true;
     } catch (e) {
-      console.error(`❌ ERROR META API (whatsapp) al enviar a ${to}:`, e.message);
+      console.error(`❌ ERROR META API (whatsapp) al enviar a ${to}:`, e.response?.data?.error?.message || e.message);
       return false;
     }
   } else if (plataforma === "messenger") {

@@ -38,6 +38,9 @@ export async function POST(solicitud) {
             tipo: tipo === 'document' ? 'archivo' : (tipo === 'video' ? 'video' : (tipo === 'image' ? 'imagen' : (tipo === 'audio' ? 'audio' : 'texto'))),
             url_archivo: url_archivo || null,
             id_mensaje_meta: idMeta,
+            // Estado de entrega: WhatsApp lo irá actualizando por webhook a partir del wamid
+            ...(idMeta.startsWith('wamid.') ? { wamid: idMeta } : {}),
+            estado_entrega: 'sent',
             ...(respuesta_a_id ? { respuesta_a_id } : {})
           })
           if (errIns?.code === '23505') {
