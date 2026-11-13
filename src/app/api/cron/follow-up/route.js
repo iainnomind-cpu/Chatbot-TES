@@ -4,6 +4,7 @@ import axios from 'axios'
 import { normalizarConfig, decidirSeguimiento, mensajeSeguimientoTexto, MAX_INTENTOS } from '@/lib/seguimientos'
 import { construirPayload, textoFinal } from '@/lib/plantillasWhatsapp'
 import { enviarPush } from '@/lib/enviarPush'
+import { alertasPendientes } from '@/lib/alertas'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -163,6 +164,30 @@ export async function GET(request) {
         console.error(`Error procesando conv ${conv.id}:`, convErr.message)
         resultados.errores++
       }
+    }
+
+    // ---- Alertas a asesores: prospectos que escribieron y nadie (ni Alex) les contestó ----
+    try {
+      const desde = new Date(ahora - 48 * 36e5).toISOString()
+      const { data: recientes } = await supabase
+        .from('conversaciones')
+        .select('id, id_plataforma, asignado_a_humano, prospectos(nombre, nombre_alumno, lead_score)')
+        .gte('actualizado_en', desde)
+        .order('actualizado_en', { ascending: false })
+        .limit(LIMITE_CONVERSACIONES)
+      const conUltimo = []
+      for (const c of recientes || []) {
+        const { data: ult } = await supabase.from('mensajes').select('remitente, creado_en')
+          .eq('conversacion_id', c.id).order('creado_en', { ascending: false }).limit(1).maybeSingle()
+        conUltimo.push({ ...c, ultimo: ult })
+      }
+      const alertas = alertasPendientes(conUltimo, ahora)
+      for (const a of alertas) {
+        await enviarPush({ title: a.title, body: a.body, url: `/inbox?id=${a.conversacionId}`, tag: `${a.tipo}-${a.conversacionId}` })
+      }
+      resultados.alertas = alertas.length
+    } catch (eAlertas) {
+      console.error('Error generando alertas:', eAlertas.message)
     }
 
     console.log('📊 Resultados del cron de seguimiento:', JSON.stringify(resultados))

@@ -737,6 +737,10 @@ function ContenidoProspectos() {
                   <span className="text-[10px] text-blue-500 block mb-1">Canal de Origen</span>
                   <span className="font-bold text-blue-800 uppercase text-xs">{prospectoSeleccionado.canal || 'Desconocido'}</span>
                 </div>
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-500 block mb-1">Etapa del embudo</span>
+                  <span className="font-bold text-slate-800 text-xs">{prospectoSeleccionado.etapa_funnel || '1. Prospecto nuevo'}</span>
+                </div>
                 {/* Anuncio CTWA de origen */}
                 {prospectoSeleccionado.conversaciones?.[0]?.anuncio_id && prospectoSeleccionado.conversaciones?.[0]?.anuncios?.nombre && (
                   <div className="bg-purple-50 p-3 rounded-xl border border-purple-200 col-span-2">

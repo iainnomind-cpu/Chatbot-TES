@@ -9,6 +9,8 @@ import { enviarPush } from "@/lib/enviarPush";
 import { quitarOfertasFueraDeEdad } from "@/lib/ofertasCursos";
 import { registrarEstadoEntrega, marcarEnvio } from "@/lib/entregas";
 import { normalizarCurso } from "@/lib/cursos";
+import { cifrasNoAutorizadas, MENSAJE_SIN_DATO } from "@/lib/guardias";
+import { etapaSugerida, etapaAAvanzar } from "@/lib/etapas";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -835,7 +837,7 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         : "No hay citas agendadas aún, todos los horarios están libres."
     }`;
 
-    const { respuesta, datos, opciones, intencion } = await consultarAlex(
+    let { respuesta, datos, opciones, intencion } = await consultarAlex(
       [
         {
           role: "system",
@@ -890,6 +892,17 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
       const idAlternativa = await guardarMensajeBot({ conversacion_id: convExist.id, contenido: respuestaAlternativa });
       await marcarEnvio(supabase, idAlternativa, await enviarRespuesta(remitenteId, respuestaAlternativa));
       return NextResponse.json({ estado: "reformulado" }, { status: 200 });
+    }
+
+    // Guardia: una cifra de dinero que no está en la tabla de cursos es un precio inventado.
+    // Mejor transferir a un asesor que enviarla.
+    const cifrasInventadas = intencion === "TRANSFER_HUMANO" ? [] : cifrasNoAutorizadas(respuesta, tablaDinamicaCursos);
+    if (cifrasInventadas.length > 0) {
+      console.warn(`🛡️ [GUARDIA] Alex iba a dar cifras no autorizadas (${cifrasInventadas.join(", ")}) a ${remitenteId}. Se transfiere a asesor.`);
+      respuesta = MENSAJE_SIN_DATO;
+      opciones = null;
+      intencion = "TRANSFER_HUMANO";
+      datos = { ...(datos || {}), imagen: null, escalation_reason: `Alex iba a dar una cifra que no está en la tabla de cursos ($${cifrasInventadas.join(", $")}). Respuesta retenida.` };
     }
 
     console.log(`🤖 AlexIA (${remitenteId}):`, { intencion, datos });
@@ -1243,6 +1256,21 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         } catch (eMailErr) {
           console.error("❌ Error enviando email de cita:", eMailErr);
         }
+      }
+    }
+
+    // 6b. Avanzar la etapa del embudo según lo que pasó (nunca la regresa)
+    if (prosExist?.id) {
+      try {
+        const { data: pEtapa } = await supabase.from("prospectos").select("etapa_funnel, edad, nivel, lead_score").eq("id", prosExist.id).maybeSingle();
+        const sugerida = etapaSugerida({ intencion, prospecto: pEtapa || prosExist, citaAgendada: intencion === "CIERRE_CITA" });
+        const nueva = etapaAAvanzar(pEtapa?.etapa_funnel, sugerida);
+        if (nueva) {
+          await supabase.from("prospectos").update({ etapa_funnel: nueva }).eq("id", prosExist.id);
+          console.log(`📈 [ETAPA] ${remitenteId}: ${pEtapa?.etapa_funnel || "1. Prospecto nuevo"} → ${nueva}`);
+        }
+      } catch (eEtapa) {
+        console.error("Error actualizando etapa:", eEtapa.message);
       }
     }
 

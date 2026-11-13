@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import axios from 'axios'
+import { enviarPush } from '@/lib/enviarPush'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30 // Vercel max for hobby
@@ -90,6 +91,27 @@ export async function GET(request) {
         console.error(`❌ Error enviando recordatorio a ${telefono}:`, e.response?.data || e.message)
         resultados.errores++
       }
+    }
+
+    // ---- Resumen diario para asesores: seguimientos programados para hoy o vencidos ----
+    try {
+      const { data: pendientes } = await supabase
+        .from('prospectos')
+        .select('id, etapa_funnel, inscrito, proximo_seguimiento')
+        .lte('proximo_seguimiento', fechaHoy)
+      const abiertos = (pendientes || []).filter(p => !p.inscrito && !(p.etapa_funnel || '').includes('Descartado'))
+      resultados.seguimientos_pendientes = abiertos.length
+      if (abiertos.length > 0) {
+        const vencidos = abiertos.filter(p => p.proximo_seguimiento < fechaHoy).length
+        await enviarPush({
+          title: `📋 ${abiertos.length} seguimiento(s) para hoy`,
+          body: vencidos > 0 ? `${vencidos} ya están vencidos. Revisa la pestaña Seguimiento.` : 'Revisa la pestaña Seguimiento para atenderlos.',
+          url: '/seguimiento',
+          tag: `seguimientos-dia-${fechaHoy}`,
+        })
+      }
+    } catch (eResumen) {
+      console.error('Error en resumen de seguimientos:', eResumen.message)
     }
 
     return NextResponse.json({ success: true, ...resultados })
