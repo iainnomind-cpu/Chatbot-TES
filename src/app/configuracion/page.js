@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
+import ConfigSeguimientos from '@/componentes/ConfigSeguimientos'
+import { normalizarConfig } from '@/lib/seguimientos'
 
 // Cargado dinámicamente porque usa APIs del navegador (Notification, ServiceWorker)
 const DiagnosticoPush = dynamic(() => import('@/componentes/DiagnosticoPush'), { ssr: false })
@@ -18,6 +20,7 @@ export default function PaginaConfiguracion() {
   })
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
+  const [seguimiento, setSeguimiento] = useState(normalizarConfig(null))
 
   useEffect(() => {
     const cargarConfig = async () => {
@@ -33,6 +36,7 @@ export default function PaginaConfiguracion() {
             agenda_fin: data.agenda_fin || '18:00',
             agenda_brecha: data.agenda_brecha || 30
           })
+          setSeguimiento(normalizarConfig(data.seguimiento))
         }
       } catch (err) {
         console.error('Fallo cargando config:', err)
@@ -56,7 +60,8 @@ export default function PaginaConfiguracion() {
           agenda_dias: config.agenda_dias,
           agenda_inicio: config.agenda_inicio,
           agenda_fin: config.agenda_fin,
-          agenda_brecha: parseInt(config.agenda_brecha)
+          agenda_brecha: parseInt(config.agenda_brecha),
+          seguimiento: normalizarConfig(seguimiento)
         })
       })
 
@@ -176,8 +181,10 @@ export default function PaginaConfiguracion() {
           </div>
         </div>
 
+        <ConfigSeguimientos valor={seguimiento} onChange={setSeguimiento} />
+
         <div className="pt-6 border-t border-slate-100 flex justify-end">
-          <button 
+          <button
             type="submit"
             disabled={guardando}
             className="bg-[#1e3a8a] text-white px-6 py-2.5 rounded-lg font-bold shadow-md hover:bg-blue-900 transition-colors disabled:opacity-50"
