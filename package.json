@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "probar:alex": "node --no-warnings --env-file=.env.local scripts/probar-alex.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.41",

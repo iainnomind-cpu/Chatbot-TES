@@ -38,6 +38,19 @@ WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_VERIFY_TOKEN=
 ```
 
+## 🧪 Pruebas de Alex antes de desplegar
+
+Antes de subir cualquier cambio en `src/lib/alexIA.js` (instrucciones del bot) o en el webhook, corre la batería de conversaciones contra el modelo real:
+
+```bash
+npm run probar:alex
+```
+
+- Requiere `OPENAI_API_KEY` en `.env.local`. Cada corrida completa cuesta unos centavos de dólar y tarda 1 a 2 minutos.
+- `npm run probar:alex -- --solo "Lulu"` corre solo los escenarios cuyo nombre contenga ese texto; `-- --ver` imprime todas las conversaciones.
+- Los escenarios están en `scripts/probar-alex.mjs`. Cuando un prospecto real exponga un error nuevo, agrega su conversación como escenario para que no vuelva a pasar.
+- Como el modelo no es determinista, un escenario que falla una sola vez conviene repetirlo; si falla dos de tres veces, hay que ajustar las instrucciones.
+
 ## 🏗️ Instalación y Desarrollo
 
 1.  Clona el repositorio.
