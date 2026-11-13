@@ -285,15 +285,21 @@ export async function consultarAlex(mensajesOriginales, nombreUsuario = '', plat
       .replace('{TABLA_DINAMICA_CURSOS}', tablaDinamicaCursos)
       .replace('{FECHA_ACTUAL}', `${diaActualStr}, ${fechaActualStr} a las ${horaActualStr}`);
 
+    // Modelo configurable sin desplegar (variable ALEX_MODELO en Vercel). gpt-6.1-sol razona mejor
+    // y cuesta menos que gpt-4o; "low" mantiene la respuesta en segundos para WhatsApp.
+    const modelo = process.env.ALEX_MODELO || 'gpt-6.1-sol'
+    const esRazonador = !modelo.startsWith('gpt-4')
     const { text } = await generateText({
-      model: openai('gpt-4o'),
-      response_format: { type: 'json_object' },
+      model: openai(modelo),
       messages: [
         { role: 'system', content: promptFinal },
         ...historialDeUsuario,
         { role: 'system', content: 'RECUERDA: Tu respuesta DEBE ser un objeto JSON válido. Usa \\\\n\\\\n dentro del string "respuesta" para separar las burbujas de mensaje.' }
       ],
-      temperature: 0.3,
+      // Los modelos razonadores rechazan temperature; el SDK instalado no reconoce gpt-6 como razonador
+      ...(esRazonador
+        ? { providerOptions: { openai: { forceReasoning: true, reasoningEffort: 'low' } } }
+        : { temperature: 0.3 }),
     });
 
     try {
