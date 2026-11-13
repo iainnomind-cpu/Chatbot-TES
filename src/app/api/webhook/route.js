@@ -6,6 +6,7 @@ import { escalarAHumano } from "@/lib/prospectoSync";
 import { notificarEscalamientoAdmin, notificarCitaAdmin } from "@/lib/mailer";
 import { TIPOS_MEDIA_WHATSAPP, guardarMediaWhatsapp } from "@/lib/mediaWhatsapp";
 import { enviarPush } from "@/lib/enviarPush";
+import { quitarOfertasFueraDeEdad } from "@/lib/ofertasCursos";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -1244,7 +1245,7 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
     }
 
     // Preparar opciones (sanitizar)
-    const opcionesLimpias =
+    let opcionesLimpias =
       opciones && Array.isArray(opciones) && opciones.length > 0
         ? opciones
             .map((o) => o.replace(/["\[\]]/g, "").trim())
@@ -1261,6 +1262,13 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
       respuestaLimpia = respuestaLimpia.replace(/¿Qué prefieres\??\s*👇?\s*$/gm, '');
       respuestaLimpia = respuestaLimpia.replace(/\n\n+$/g, '');
       respuestaLimpia = respuestaLimpia.trim();
+
+      const revisada = quitarOfertasFueraDeEdad(respuestaLimpia, opcionesLimpias, cursosDb, [datos?.edad, freshPros.edad]);
+      if (revisada.quitadas.length > 0) {
+        console.log(`✂️ [OFERTA] Se quitó la oferta de ${revisada.quitadas.join(', ')}: la edad no entra en su rango.`);
+        respuestaLimpia = revisada.texto;
+        opcionesLimpias = revisada.opciones?.length ? revisada.opciones : null;
+      }
     }
     try {
       if (

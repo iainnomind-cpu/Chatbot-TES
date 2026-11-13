@@ -124,7 +124,7 @@ PASOS OBLIGATORIOS:
 ⚠️ IMPORTANTE en Escenario B:
 - La imagen enviada INICIALMENTE debe ser la del diplomado REGULAR (no la del especial).
 - El texto "¿Te gustaría apartar tu lugar?" NO aplica aquí.
-- Solo menciona el curso especial si la edad del alumno está DENTRO del rango "Para Edad" que aparece en los datos del curso especial.
+- Solo menciona el curso especial si la edad del alumno está DENTRO del rango "Para Edad" que aparece en los datos del curso especial. Compara números: si el rango es "27 a 99 años" y el alumno tiene 14, NO lo menciones.
 
 **Regla de vigencia:** Si el curso especial tiene fecha_fin_vigencia y HOY ya pasó esa fecha, NO lo menciones ni lo recomiendes.
 
