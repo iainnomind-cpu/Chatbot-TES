@@ -10,6 +10,11 @@ import ModalEnviarMensaje from '@/componentes/ModalEnviarMensaje'
 
 const ESTADOS_BASE = ['nuevo', 'contactado', 'en_proceso', 'agendado']
 const SIN_ANUNCIO = '__sin_anuncio__'
+const SIN_CURSO = '__sin_curso__'
+const cursoDe = (p) => {
+  const c = (p.curso_interes || '').trim()
+  return c && !['desconocido', 'por definir', 'n/a'].includes(c.toLowerCase()) ? c : null
+}
 const OPCIONES_SCORE = [
   { valor: 'caliente', etiqueta: '🔥 Caliente', activo: 'bg-red-100 text-red-700 border-red-200' },
   { valor: 'tibio', etiqueta: '🌡️ Tibio', activo: 'bg-amber-100 text-amber-700 border-amber-200' },
@@ -29,6 +34,8 @@ function ContenidoProspectos() {
   const [cargando, setCargando] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState('Todos')
   const [filtroAnuncio, setFiltroAnuncio] = useState('Todos')
+  const [filtroCurso, setFiltroCurso] = useState('Todos')
+  const [agruparPor, setAgruparPor] = useState('estado') // Columnas del Kanban: 'estado' | 'curso'
   const [filtroScores, setFiltroScores] = useState([]) // Vacío = todos los scores
   const [prospectoSeleccionado, setProspectoSeleccionado] = useState(null)
   const [modalAbierto, setModalAbierto] = useState(false)
@@ -207,6 +214,8 @@ function ContenidoProspectos() {
   const onDragOver = (e) => { e.preventDefault() }
   const onDrop = (e, nuevoEstado) => {
     e.preventDefault()
+    // Agrupado por curso, arrastrar no cambia nada: las columnas no son estados
+    if (agruparPor !== 'estado') return
     const id = e.dataTransfer.getData('prospectoId')
     if (id) { handleCambiarEstado(id, nuevoEstado) }
   }
@@ -220,14 +229,24 @@ function ContenidoProspectos() {
   const opcionesAnuncio = Object.keys(conteoAnuncios).sort((a, b) => a.localeCompare(b, 'es'))
   const totalSinAnuncio = prospectos.filter(p => !nombreAnuncio(p)).length
 
+  // Opciones de curso con su conteo (programa de interés)
+  const conteoCursos = {}
+  prospectos.forEach(p => {
+    const curso = cursoDe(p)
+    if (curso) conteoCursos[curso] = (conteoCursos[curso] || 0) + 1
+  })
+  const opcionesCurso = Object.keys(conteoCursos).sort((a, b) => a.localeCompare(b, 'es'))
+  const totalSinCurso = prospectos.filter(p => !cursoDe(p)).length
+
   // Incluye los estados reales en BD (ej. "Borrador" que crea el webhook), no solo los base
   const estadosDisponibles = [...new Set([...ESTADOS_BASE, ...prospectos.map(p => normalizar(p.estado))])].filter(Boolean)
 
-  const hayFiltros = filtroEstado !== 'Todos' || filtroAnuncio !== 'Todos' || filtroScores.length > 0
+  const hayFiltros = filtroEstado !== 'Todos' || filtroAnuncio !== 'Todos' || filtroCurso !== 'Todos' || filtroScores.length > 0
 
   const limpiarFiltros = () => {
     setFiltroEstado('Todos')
     setFiltroAnuncio('Todos')
+    setFiltroCurso('Todos')
     setFiltroScores([])
   }
 
@@ -240,10 +259,15 @@ function ContenidoProspectos() {
     if (filtroAnuncio === SIN_ANUNCIO && nombreAnuncio(p)) return false
     if (filtroAnuncio !== 'Todos' && filtroAnuncio !== SIN_ANUNCIO && nombreAnuncio(p) !== filtroAnuncio) return false
     if (filtroScores.length > 0 && !filtroScores.includes(normalizar(p.lead_score) || 'sin_score')) return false
+    if (filtroCurso === SIN_CURSO && cursoDe(p)) return false
+    if (filtroCurso !== 'Todos' && filtroCurso !== SIN_CURSO && cursoDe(p) !== filtroCurso) return false
     return true
   })
 
-  const columnasKanban = [...new Set([...ESTADOS_BASE, ...prospectosFiltrados.map(p => normalizar(p.estado))])].filter(Boolean)
+  const columnaDe = (p) => agruparPor === 'curso' ? (cursoDe(p) || SIN_CURSO) : normalizar(p.estado)
+  const columnasKanban = agruparPor === 'curso'
+    ? [...new Set(prospectosFiltrados.map(columnaDe))].sort((a, b) => (a === SIN_CURSO) - (b === SIN_CURSO) || a.localeCompare(b, 'es'))
+    : [...new Set([...ESTADOS_BASE, ...prospectosFiltrados.map(columnaDe)])].filter(Boolean)
 
   return (
     <div className="p-3 md:p-8 w-full flex h-[calc(100svh-65px-64px)] md:h-[calc(100svh-65px)] gap-6 overflow-hidden">
@@ -309,6 +333,36 @@ function ContenidoProspectos() {
               <option value={SIN_ANUNCIO}>Sin anuncio ({totalSinAnuncio})</option>
             </select>
           </div>
+
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl pl-3 pr-1 max-w-full">
+            <span className="material-symbols-outlined text-[16px] text-blue-700">school</span>
+            <select
+              value={filtroCurso}
+              onChange={(e) => setFiltroCurso(e.target.value)}
+              aria-label="Filtrar por curso de interés"
+              className="bg-transparent py-2 pr-1 text-sm font-semibold text-slate-700 outline-none max-w-[220px]"
+            >
+              <option value="Todos">Todos los cursos</option>
+              {opcionesCurso.map(nombre => (
+                <option key={nombre} value={nombre}>{nombre} ({conteoCursos[nombre]})</option>
+              ))}
+              <option value={SIN_CURSO}>Sin curso definido ({totalSinCurso})</option>
+            </select>
+          </div>
+
+          {vista === 'kanban' && (
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
+              {[['estado', 'Por estado'], ['curso', 'Por curso']].map(([valor, etiqueta]) => (
+                <button
+                  key={valor}
+                  onClick={() => setAgruparPor(valor)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${agruparPor === valor ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500'}`}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+          )}
 
           {OPCIONES_SCORE.map(({ valor, etiqueta, activo }) => (
             <button
@@ -489,8 +543,9 @@ function ContenidoProspectos() {
         /* VISTA KANBAN */
         <div className="flex flex-1 gap-4 overflow-x-auto pb-4 items-start">
           {columnasKanban.map(columna => {
-            const items = prospectosFiltrados.filter(p => normalizar(p.estado) === columna);
-            const tituloColumna = columna === 'nuevo' ? 'Nuevos Leads' :
+            const items = prospectosFiltrados.filter(p => columnaDe(p) === columna);
+            const tituloColumna = agruparPor === 'curso' ? (columna === SIN_CURSO ? 'Sin curso definido' : columna) :
+                                  columna === 'nuevo' ? 'Nuevos Leads' :
                                   columna === 'contactado' ? 'Contactados' :
                                   columna === 'en_proceso' ? 'En Negociación' :
                                   columna === 'agendado' ? 'Inscritos / Agendados' : columna.replace('_', ' ');

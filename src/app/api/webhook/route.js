@@ -8,6 +8,7 @@ import { TIPOS_MEDIA_WHATSAPP, guardarMediaWhatsapp } from "@/lib/mediaWhatsapp"
 import { enviarPush } from "@/lib/enviarPush";
 import { quitarOfertasFueraDeEdad } from "@/lib/ofertasCursos";
 import { registrarEstadoEntrega, marcarEnvio } from "@/lib/entregas";
+import { normalizarCurso } from "@/lib/cursos";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -670,6 +671,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
     // === CTWA: DETECCIÓN DE ANUNCIO ===
     let anuncioDetectado = null;
     let anuncioContexto = '';
+    let cursoDelAnuncio = null; // curso ligado al anuncio por el que llegó el prospecto
 
     if (referralData) {
       // 1. Buscar por source_id exacto
@@ -696,6 +698,7 @@ INSTRUCCIONES CRÍTICAS PARA TI (ALEX):
 
       // 3. Guardar anuncio_id en la conversación si lo detectamos
       if (anuncioDetectado) {
+        cursoDelAnuncio = anuncioDetectado.curso_relacionado || null;
         console.log(`🎯 [CTWA] Anuncio detectado: "${anuncioDetectado.nombre}" (${anuncioDetectado.id})`);
         await supabase.from('conversaciones')
           .update({ anuncio_id: anuncioDetectado.id })
@@ -734,6 +737,7 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         .select('*')
         .eq('id', convExist.anuncio_id)
         .maybeSingle();
+      cursoDelAnuncio = anuncioConv?.curso_relacionado || null;
       if (anuncioConv && anuncioConv.flujo_campana === 'DIAGNOSTICO') {
         anuncioContexto = `FLUJO_CAMPANA: DIAGNOSTICO\n🎯 Este usuario inició desde el anuncio "${anuncioConv.nombre}". Continúa el flujo diagnóstico donde se quedó.`;
         console.log(`🎯 [CTWA-FOLLOWUP] Continuando flujo DIAGNOSTICO para anuncio "${anuncioConv.nombre}"`);
@@ -994,13 +998,16 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
     // 5. Actualizar CRM o Crear Prospecto si ya hay datos suficientes
     if (datos && Object.keys(datos).length > 0) {
       try {
+        // Nombre oficial del curso (para filtrar y agrupar); si Alex no lo detectó, el del anuncio
+        const cursoNormalizado = normalizarCurso(datos.curso_interes, cursosDb) || normalizarCurso(cursoDelAnuncio, cursosDb);
         if (!prosExist) {
-          // Crear Prospecto solo si tenemos datos mínimos (Edad, Nivel o Horario)
+          // Crear Prospecto solo si tenemos datos mínimos (Edad, Nivel, Horario o Curso)
           if (
             datos.edad ||
             datos.nivel ||
             datos.horario ||
-            datos.nombre_alumno
+            datos.nombre_alumno ||
+            cursoNormalizado
           ) {
             const { data: nuevoP } = await supabase
               .from("prospectos")
@@ -1011,7 +1018,7 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
                 edad: datos.edad ? parseInt(datos.edad) : null,
                 nivel: datos.nivel || null,
                 horario: datos.horario || null,
-                curso_interes: datos.curso_interes || null,
+                curso_interes: cursoNormalizado,
                 canal: plataforma,
                 estado: "Borrador",
               })
@@ -1042,8 +1049,11 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
             updateData.nivel = datos.nivel;
           if (datos.horario && !isInvalidName(datos.horario))
             updateData.horario = datos.horario;
-          if (datos.curso_interes && !isInvalidName(datos.curso_interes))
-            updateData.curso_interes = datos.curso_interes;
+          // El curso del anuncio solo rellena si el prospecto aún no tiene uno
+          if (normalizarCurso(datos.curso_interes, cursosDb))
+            updateData.curso_interes = cursoNormalizado;
+          else if (cursoNormalizado && !prosExist.curso_interes)
+            updateData.curso_interes = cursoNormalizado;
           if (datos.categoria_edad)
             updateData.categoria_edad = datos.categoria_edad;
           if (datos.lead_score && !isInvalidName(datos.lead_score))
