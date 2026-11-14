@@ -97,6 +97,9 @@ export default function PaginaInbox() {
   const [segundosGrabacion, setSegundosGrabacion] = useState(0)
   const [audioBorrador, setAudioBorrador] = useState(null) // { blob, url }
   const [enviandoAudio, setEnviandoAudio] = useState(false)
+  const [archivoBorrador, setArchivoBorrador] = useState(null) // { file, url, tipo } esperando pie de foto
+  const [pieArchivo, setPieArchivo] = useState('')
+  const [enviandoArchivo, setEnviandoArchivo] = useState(false)
   const fileInputRef = useRef(null)
   const docInputRef = useRef(null)
   const grabadorRef = useRef(null)
@@ -429,43 +432,60 @@ export default function PaginaInbox() {
       return
     }
 
+    // No se envía todavía: queda en vista previa para escribir el pie de foto
+    const tipoMensaje = file.type.startsWith('video/') ? 'video' : (tipo === 'documento' ? 'archivo' : 'imagen')
+    const vistaPrevia = tipoMensaje === 'archivo' ? null : URL.createObjectURL(file)
+    setArchivoBorrador(prev => {
+      if (prev?.url) URL.revokeObjectURL(prev.url)
+      return { file, url: vistaPrevia, tipo: tipoMensaje }
+    })
+    setPieArchivo('')
+    setMostrarClipMenu(false)
+    // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+    e.target.value = ''
+  }
+
+  const descartarArchivo = () => {
+    if (archivoBorrador?.url) URL.revokeObjectURL(archivoBorrador.url)
+    setArchivoBorrador(null)
+    setPieArchivo('')
+  }
+
+  const enviarArchivoBorrador = async () => {
+    if (!archivoBorrador || enviandoArchivo) return
     try {
-      setCargando(true)
-
-      const publicUrl = await subirAStorage(file)
-
-      // Enviar el mensaje con la URL pública
-      const tipoMensaje = file.type.startsWith('video/') ? 'video' : (tipo === 'documento' ? 'archivo' : 'imagen')
-      await enviarMensaje(null, publicUrl, tipoMensaje)
-      setMostrarClipMenu(false)
-      // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
-      e.target.value = ''
+      setEnviandoArchivo(true)
+      const publicUrl = await subirAStorage(archivoBorrador.file)
+      const enviado = await enviarMensaje(null, publicUrl, archivoBorrador.tipo, pieArchivo.trim())
+      if (enviado) descartarArchivo()
     } catch (err) {
       console.error('Error subiendo:', err)
       alert('Error al subir archivo: ' + (err.message || 'Intenta de nuevo'))
     } finally {
-      setCargando(false)
+      setEnviandoArchivo(false)
     }
   }
 
-  const enviarMensaje = async (e, fileUrl = null, tipoMsg = 'texto') => {
+  // textoForzado: pie de foto de un archivo; el borrador escrito en el campo se conserva
+  const enviarMensaje = async (e, fileUrl = null, tipoMsg = 'texto', textoForzado = null) => {
     if (e) e.preventDefault()
     if ((!nuevoMensaje.trim() && !fileUrl) || !chatActivo) return false
-    // Los audios no llevan texto: el borrador escrito se conserva
     const esAudio = tipoMsg === 'audio'
-    const texto = esAudio ? '' : nuevoMensaje
+    // Audios y archivos con pie de foto no usan el campo de texto: ese borrador se conserva
+    const usaBorrador = !esAudio && textoForzado == null
+    const texto = esAudio ? '' : (textoForzado ?? nuevoMensaje)
     const citado = respondiendoA
     const idChat = chatActivo.id
     // Si el envío falla, se devuelve lo redactado para no perderlo
     const restaurar = () => {
       if (chatActivoRef.current?.id !== idChat) {
-        if (!esAudio) borradoresRef.current[idChat] = texto
+        if (usaBorrador) borradoresRef.current[idChat] = texto
         return
       }
-      if (!esAudio) setNuevoMensaje(texto)
+      if (usaBorrador) setNuevoMensaje(texto)
       setRespondiendoA(citado)
     }
-    if (!esAudio) setNuevoMensaje('')
+    if (usaBorrador) setNuevoMensaje('')
     setRespondiendoA(null)
     setMostrarEmojis(false)
     try {
@@ -1142,8 +1162,46 @@ export default function PaginaInbox() {
             </div>
           )}
 
-          {/* Grabación de audio y revisión antes de enviar */}
-          {(grabando || audioBorrador) ? (
+          {/* Archivo elegido: vista previa y pie de foto antes de enviar */}
+          {archivoBorrador ? (
+            <div className="px-4 py-3 pb-safe bg-[#f0f2f5] flex flex-col gap-2">
+              <div className="flex items-start gap-3 bg-white rounded-xl p-3 shadow-sm">
+                {archivoBorrador.tipo === 'imagen' ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={archivoBorrador.url} alt="Vista previa" className="w-24 h-24 object-cover rounded-lg shrink-0" />
+                ) : archivoBorrador.tipo === 'video' ? (
+                  <video src={archivoBorrador.url} className="w-32 h-24 object-cover rounded-lg shrink-0" muted />
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-[#7f66ff]/10 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[#7f66ff] text-[28px]">description</span>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-700 truncate">{archivoBorrador.file.name}</p>
+                  <p className="text-[11px] text-slate-400 mb-2">{(archivoBorrador.file.size / 1024 / 1024).toFixed(1)} MB</p>
+                  <textarea
+                    value={pieArchivo}
+                    onChange={e => setPieArchivo(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviarArchivoBorrador(); } }}
+                    rows={2}
+                    autoFocus
+                    placeholder="Escribe un pie de foto (opcional)"
+                    aria-label="Pie de foto"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-[#111b21] outline-none resize-none focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button type="button" onClick={descartarArchivo} disabled={enviandoArchivo} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-white transition-colors disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button type="button" onClick={enviarArchivoBorrador} disabled={enviandoArchivo} className="px-4 py-2 rounded-xl bg-[#1e3a8a] text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+                  <span className={`material-symbols-outlined text-[18px] ${enviandoArchivo ? 'animate-spin' : ''}`}>{enviandoArchivo ? 'progress_activity' : 'send'}</span>
+                  {enviandoArchivo ? 'Enviando...' : 'Enviar'}
+                </button>
+              </div>
+            </div>
+          ) : (grabando || audioBorrador) ? (
             <div className="px-4 py-2.5 pb-safe bg-[#f0f2f5] flex items-center gap-2">
               <button
                 type="button"
@@ -1236,7 +1294,8 @@ export default function PaginaInbox() {
               onChange={(e) => setNuevoMensaje(e.target.value)}
               // Enter solo hace salto de línea para no enviar borradores por accidente
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviarMensaje(e); } }}
-              placeholder="Escribe un mensaje"
+              enterKeyHint="enter"
+              placeholder="Escribe un mensaje (Enter: salto de línea · Ctrl+Enter: enviar)"
               className="flex-1 bg-white rounded-lg px-4 py-2.5 outline-none resize-none overflow-y-auto text-base md:text-[14px] text-[#111b21] placeholder:text-slate-400 focus:ring-0 border-none shadow-sm"
               rows={1}
             />
