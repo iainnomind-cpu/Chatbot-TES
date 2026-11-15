@@ -1,7 +1,8 @@
 // === Service Worker — TES CRM ===
 // Maneja caché offline + notificaciones push
 
-const CACHE_NAME = 'tes-crm-v1';
+// Cambiar la versión fuerza a los dispositivos a tomar el service worker nuevo
+const CACHE_NAME = 'tes-crm-v2';
 const OFFLINE_URL = '/';
 
 // Recursos a cachear al instalar

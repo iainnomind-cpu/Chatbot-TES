@@ -9,24 +9,62 @@ export default function InstallPWA() {
 
   useEffect(() => {
     // ── Registrar Service Worker ──────────────────────────────
+    // La app instalada (sobre todo en iPhone) puede quedarse días con una versión vieja en memoria.
+    // Por eso: al volver al frente se busca versión nueva y, si la hay, se recarga sola.
+    const limpiezas = []
     if ('serviceWorker' in navigator) {
+      const habiaControlador = !!navigator.serviceWorker.controller
       navigator.serviceWorker
         .register('/sw.js', { scope: '/' })
-        .then((reg) => console.log('[PWA] SW registrado:', reg.scope))
+        .then((reg) => {
+          console.log('[PWA] SW registrado:', reg.scope)
+          const buscarActualizacion = () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}) }
+          document.addEventListener('visibilitychange', buscarActualizacion)
+          limpiezas.push(() => document.removeEventListener('visibilitychange', buscarActualizacion))
+        })
         .catch((err) => console.error('[PWA] Error registrando SW:', err))
+
+      // Un SW nuevo tomó el control: recargar para usar el código nuevo (no en la primera instalación)
+      let recargando = false
+      const alCambiarControlador = () => {
+        if (!habiaControlador || recargando) return
+        recargando = true
+        window.location.reload()
+      }
+      navigator.serviceWorker.addEventListener('controllerchange', alCambiarControlador)
+      limpiezas.push(() => navigator.serviceWorker.removeEventListener('controllerchange', alCambiarControlador))
     }
 
+    // Además del SW: comparar el despliegue actual con el que tenía la página al cargar
+    let versionCargada = null
+    const revisarVersion = async () => {
+      try {
+        const res = await fetch('/api/version', { cache: 'no-store' })
+        if (!res.ok) return
+        const { version } = await res.json()
+        if (!version || version === 'dev') return
+        if (versionCargada === null) { versionCargada = version; return }
+        if (version !== versionCargada) window.location.reload()
+      } catch { /* sin red: no pasa nada */ }
+    }
+    revisarVersion()
+    const alVolver = () => { if (document.visibilityState === 'visible') revisarVersion() }
+    document.addEventListener('visibilitychange', alVolver)
+    limpiezas.push(() => document.removeEventListener('visibilitychange', alVolver))
+
+    const limpiar = () => limpiezas.forEach((fn) => fn())
+
     // Si ya está instalada como standalone, no mostrar nada
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
       setYaInstalada(true)
-      return
+      return limpiar
     }
 
     // No mostrar si el usuario lo dismisseó hace menos de 7 días
     const dismissedAt = localStorage.getItem('pwa_install_dismissed')
     if (dismissedAt) {
       const daysSince = (Date.now() - parseInt(dismissedAt)) / (1000 * 60 * 60 * 24)
-      if (daysSince < 7) return
+      if (daysSince < 7) return limpiar
     }
 
     const handler = (e) => {
@@ -37,7 +75,10 @@ export default function InstallPWA() {
     }
 
     window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      limpiar()
+    }
   }, [])
 
   const handleInstall = async () => {
