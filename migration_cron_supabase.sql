@@ -1,16 +1,29 @@
 -- Disparador por hora para seguimientos y alertas usando Supabase (pg_cron + pg_net).
 -- Sustituye al cron de Vercel, que en plan Hobby solo corre una vez al día.
--- Ejecutar en Supabase SQL Editor. Antes, reemplaza PEGA_AQUI_EL_CRON_SECRET por el valor
--- de la variable CRON_SECRET que está en Vercel (Settings → Environment Variables).
+--
+-- CÓMO USARLO: copia este archivo al SQL Editor de Supabase y ahí (NO en este archivo del
+-- repositorio, que es público en GitHub) reemplaza PEGA_AQUI_EL_CRON_SECRET por el valor
+-- de la variable CRON_SECRET de Vercel. Se puede ejecutar varias veces sin problema.
 
 -- 1. Extensiones (en Supabase ya vienen; esto solo las activa)
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- 2. Guardar el secreto en el Vault (no queda en texto plano en el job)
-select vault.create_secret('PEGA_AQUI_EL_CRON_SECRET', 'cron_secret', 'CRON_SECRET de Vercel para /api/cron/follow-up');
+-- 2. Guardar el secreto en el Vault (no queda en texto plano en el job).
+--    Si ya existe, lo actualiza en lugar de fallar.
+do $$
+declare
+  existente uuid := (select id from vault.secrets where name = 'cron_secret');
+begin
+  if existente is null then
+    perform vault.create_secret('PEGA_AQUI_EL_CRON_SECRET', 'cron_secret', 'CRON_SECRET de Vercel para /api/cron/follow-up');
+  else
+    perform vault.update_secret(existente, 'PEGA_AQUI_EL_CRON_SECRET');
+  end if;
+end $$;
 
--- 3. Programar la llamada cada hora, al minuto 5 (hora UTC; da igual, el código respeta el horario de México)
+-- 3. Programar la llamada cada hora, al minuto 5 (hora UTC; da igual, el código respeta el horario de México).
+--    Si el job ya existe con ese nombre, se reemplaza.
 select cron.schedule(
   'seguimientos-cada-hora',
   '5 * * * *',
