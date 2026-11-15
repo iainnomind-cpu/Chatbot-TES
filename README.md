@@ -42,7 +42,11 @@ WHATSAPP_VERIFY_TOKEN=
 
 El plan Hobby de Vercel solo permite crons **una vez al día** (si `vercel.json` pide más, el build falla). Por eso `/api/cron/follow-up` está programado a las 15:00 UTC (9:00 de Colima). Con eso, los seguimientos automáticos y las alertas de "prospecto sin respuesta" solo se revisan una vez al día.
 
-Para que corran cada hora sin pagar Pro, usa un disparador externo gratuito (por ejemplo cron-job.org o UptimeRobot):
+Para que corran cada hora sin pagar Pro hay dos opciones:
+
+**A) Desde Supabase (recomendado, sin servicios extra):** ejecuta `migration_cron_supabase.sql` en el SQL Editor, pegando antes el valor de `CRON_SECRET`. Usa `pg_cron` + `pg_net` y guarda el secreto en el Vault. El mismo archivo trae las consultas para ver si está corriendo y para quitarlo.
+
+**B) Con un servicio externo gratuito** (cron-job.org o UptimeRobot):
 
 - URL: `https://erp-total-english.vercel.app/api/cron/follow-up`
 - Método: `GET`, cada hora
