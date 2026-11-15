@@ -38,6 +38,18 @@ WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_VERIFY_TOKEN=
 ```
 
+## ⏰ Seguimientos y alertas cada hora (plan Hobby de Vercel)
+
+El plan Hobby de Vercel solo permite crons **una vez al día** (si `vercel.json` pide más, el build falla). Por eso `/api/cron/follow-up` está programado a las 15:00 UTC (9:00 de Colima). Con eso, los seguimientos automáticos y las alertas de "prospecto sin respuesta" solo se revisan una vez al día.
+
+Para que corran cada hora sin pagar Pro, usa un disparador externo gratuito (por ejemplo cron-job.org o UptimeRobot):
+
+- URL: `https://erp-total-english.vercel.app/api/cron/follow-up`
+- Método: `GET`, cada hora
+- Encabezado: `Authorization: Bearer <valor de CRON_SECRET en Vercel>`
+
+El endpoint es seguro de llamar varias veces: nunca envía dos seguimientos seguidos a la misma persona ni repite alertas. Si más adelante el proyecto pasa a Pro, basta con volver a poner `"0 * * * *"` en `vercel.json`.
+
 ## 🧪 Pruebas de Alex antes de desplegar
 
 Antes de subir cualquier cambio en `src/lib/alexIA.js` (instrucciones del bot) o en el webhook, corre la batería de conversaciones contra el modelo real:
