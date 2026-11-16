@@ -33,6 +33,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 OPENAI_API_KEY=
 ALEX_MODELO=gpt-6.1-sol   # opcional; modelo de OpenAI para Alex (ej. gpt-6.1-terra más barato, gpt-4o el anterior)
+ALEX_MODELO_TRANSCRIPCION=gpt-transcribe   # opcional; pasa a texto las notas de voz (~$0.0045 por minuto)
 WHATSAPP_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_VERIFY_TOKEN=

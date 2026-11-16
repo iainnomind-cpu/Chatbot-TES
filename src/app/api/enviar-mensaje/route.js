@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import axios from 'axios'
 import { supabaseAdmin as supabase } from "@/lib/supabase"
 import { tieneIdDeMeta } from '@/lib/mensajeria'
+import { subirMediaMeta } from '@/lib/mediaMeta'
 
 export async function POST(solicitud) {
   try {
@@ -109,7 +110,16 @@ export async function POST(solicitud) {
 
     if (tipo === 'audio' && url_archivo) {
       payload.type = 'audio'
-      payload.audio = { link: url_archivo }
+      // Subirlo a Meta en vez de mandar el link: el link se cachea y WhatsApp lo muestra
+      // como reenviado. Un .ogg (opus) con voice: true llega como nota de voz.
+      const esOgg = /\.ogg(\?|$)/i.test(url_archivo)
+      try {
+        const idMedia = await subirMediaMeta(url_archivo, esOgg ? 'audio/ogg' : 'audio/mpeg')
+        payload.audio = idMedia ? { id: idMedia, ...(esOgg ? { voice: true } : {}) } : { link: url_archivo }
+      } catch (errSubida) {
+        console.error('⚠️ [ENVIAR-MSG] No se pudo subir el audio a Meta, se envía por link:', errSubida.response?.data?.error?.message || errSubida.message)
+        payload.audio = { link: url_archivo }
+      }
     } else if (tipo === 'template' && nombrePlantilla) {
       payload.type = 'template'
       payload.template = { name: nombrePlantilla, language: { code: 'es_MX' } }
@@ -139,6 +149,18 @@ export async function POST(solicitud) {
     } catch (error) {
       console.error(`❌ [ENVIAR-MSG] Meta rechazó el envío a ${to}:`, JSON.stringify(error.response?.data || error.message))
       console.error(`❌ [ENVIAR-MSG] Payload enviado:`, JSON.stringify(payload))
+
+      // Nota de voz rechazada (p. ej. audio en estéreo): reintentar como audio normal
+      if (payload.audio?.voice) {
+        delete payload.audio.voice
+        try {
+          const resSinVoz = await axios.post(url, payload, headers)
+          await guardarEnBD(resSinVoz.data)
+          return NextResponse.json({ exito: true, metaResponse: resSinVoz.data }, { status: 200 })
+        } catch (errSinVoz) {
+          console.error('❌ [ENVIAR-MSG] También falló como audio normal:', errSinVoz.response?.data?.error?.message || errSinVoz.message)
+        }
+      }
 
       let toCorregido = null;
       if (to.startsWith('521') && to.length === 13) {

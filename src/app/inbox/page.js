@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/componentes/AuthProvider'
-import { convertirAMp3, tieneIdDeMeta } from '@/lib/mensajeria'
+import { convertirAMp3, tieneIdDeMeta, FORMATO_NOTA_VOZ, navegadorGrabaNotaDeVoz } from '@/lib/mensajeria'
 
 // Estado real que reporta WhatsApp. Antes la palomita azul solo indicaba que un asesor abrió el chat.
 const PALOMITAS = {
@@ -316,8 +316,10 @@ export default function PaginaInbox() {
     }
     const idChat = chatActivo?.id
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const grabador = new MediaRecorder(stream)
+      // Mono: WhatsApp solo acepta notas de voz en un canal
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
+      const notaDeVoz = navegadorGrabaNotaDeVoz()
+      const grabador = new MediaRecorder(stream, notaDeVoz ? { mimeType: FORMATO_NOTA_VOZ } : undefined)
       const fragmentos = []
       grabacionCanceladaRef.current = false
       grabador.ondataavailable = (ev) => { if (ev.data.size > 0) fragmentos.push(ev.data) }
@@ -327,7 +329,9 @@ export default function PaginaInbox() {
         setGrabando(false)
         if (grabacionCanceladaRef.current || chatActivoRef.current?.id !== idChat) return
         try {
-          const blob = await convertirAMp3(new Blob(fragmentos, { type: grabador.mimeType }))
+          const grabado = new Blob(fragmentos, { type: grabador.mimeType })
+          // Si ya es ogg/opus se manda tal cual (llega como nota de voz); si no, a MP3
+          const blob = notaDeVoz ? new Blob([grabado], { type: 'audio/ogg' }) : await convertirAMp3(grabado)
           if (chatActivoRef.current?.id !== idChat) return
           // Límite de WhatsApp para audios
           if (blob.size > 16 * 1024 * 1024) {
@@ -365,7 +369,12 @@ export default function PaginaInbox() {
     if (!audioBorrador || enviandoAudio) return
     try {
       setEnviandoAudio(true)
-      const archivo = new File([audioBorrador.blob], `audio_${Date.now()}.mp3`, { type: 'audio/mpeg' })
+      const esOgg = audioBorrador.blob.type.includes('ogg')
+      const archivo = new File(
+        [audioBorrador.blob],
+        `audio_${Date.now()}.${esOgg ? 'ogg' : 'mp3'}`,
+        { type: esOgg ? 'audio/ogg' : 'audio/mpeg' }
+      )
       const publicUrl = await subirAStorage(archivo)
       const enviado = await enviarMensaje(null, publicUrl, 'audio')
       if (enviado) descartarAudio()

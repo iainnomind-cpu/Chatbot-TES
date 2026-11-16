@@ -5,6 +5,7 @@ import { consultarAlex } from "@/lib/alexIA";
 import { escalarAHumano } from "@/lib/prospectoSync";
 import { notificarEscalamientoAdmin, notificarCitaAdmin } from "@/lib/mailer";
 import { TIPOS_MEDIA_WHATSAPP, guardarMediaWhatsapp } from "@/lib/mediaWhatsapp";
+import { transcribirAudio } from "@/lib/transcripcion";
 import { enviarPush } from "@/lib/enviarPush";
 import { quitarOfertasFueraDeEdad } from "@/lib/ofertasCursos";
 import { registrarEstadoEntrega, marcarEnvio } from "@/lib/entregas";
@@ -158,8 +159,20 @@ export async function POST(solicitud) {
           const { tipo, etiqueta } = TIPOS_MEDIA_WHATSAPP[msj.type];
           tipoMensajeEntrante = tipo;
           texto = msj[msj.type]?.caption || etiqueta;
-          urlArchivoEntrante = await guardarMediaWhatsapp(msj[msj.type]);
+          const guardado = await guardarMediaWhatsapp(msj[msj.type]);
+          urlArchivoEntrante = guardado?.url || null;
           console.log('📎 [WA] Archivo entrante tipo:', msj.type, '| guardado:', !!urlArchivoEntrante);
+
+          // Nota de voz: se pasa a texto para que Alex pueda responderla como un mensaje normal
+          if (tipo === 'audio' && guardado?.buffer) {
+            const transcrito = await transcribirAudio(guardado.buffer, guardado.mimeType);
+            if (transcrito) {
+              texto = transcrito;
+              console.log('🎤 [WA] Audio transcrito:', transcrito.substring(0, 80));
+            } else {
+              console.warn('🎤 [WA] No se pudo transcribir el audio: lo atiende un asesor');
+            }
+          }
         }
       }
     } else if (cuerpo.object === "page" || cuerpo.object === "instagram") {

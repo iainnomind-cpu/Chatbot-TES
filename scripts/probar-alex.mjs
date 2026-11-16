@@ -129,6 +129,16 @@ const ESCENARIOS = [
     ],
   },
   {
+    // Las notas de voz llegan transcritas: Alex debe tratarlas como un mensaje normal
+    nombre: 'Nota de voz transcrita: responder como mensaje normal',
+    turnos: [
+      {
+        usuario: 'Hola, buenas tardes. Quiero información del curso de inglés para mi hija de ocho años, va empezando desde cero.',
+        esperar: { noContiene: /no puedo (escuchar|o[ií]r)|audio/i, maxPreguntas: 2, noIntencion: 'TRANSFER_HUMANO' },
+      },
+    ],
+  },
+  {
     nombre: 'Precio durante perfilamiento: sin cifras inventadas',
     turnos: [
       { usuario: 'Hola, ¿cuánto cuesta el curso para adultos?', esperar: { sinGuardias: true, noIntencion: 'COURSE_RECOMMENDED' } },

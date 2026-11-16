@@ -4,6 +4,13 @@ const PREFIJOS_INTERNOS = ['manual_', 'seguimiento_auto', 'recordatorio_', 'test
 export const tieneIdDeMeta = (idMensajeMeta) =>
   !!idMensajeMeta && !PREFIJOS_INTERNOS.some(prefijo => idMensajeMeta.startsWith(prefijo))
 
+// WhatsApp solo muestra como nota de voz los .ogg con codec opus; si el navegador puede
+// grabar en ese formato se usa tal cual, y si no se convierte a MP3 (llega como archivo de audio).
+export const FORMATO_NOTA_VOZ = 'audio/ogg;codecs=opus'
+
+export const navegadorGrabaNotaDeVoz = () =>
+  typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(FORMATO_NOTA_VOZ) === true
+
 // MediaRecorder graba en WebM en Chrome y WhatsApp no lo acepta; MP3 funciona en todas las plataformas
 export async function convertirAMp3(blob) {
   const { Mp3Encoder } = await import('@breezystack/lamejs')

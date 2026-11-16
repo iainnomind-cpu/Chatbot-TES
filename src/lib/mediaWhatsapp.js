@@ -21,7 +21,8 @@ function extensionDe(media, mimeType) {
 }
 
 // Las URLs de Meta requieren token y caducan en minutos: el archivo se copia a nuestro storage.
-// Devuelve la URL pública, o null si no se pudo (el mensaje se guarda igual con su etiqueta).
+// Devuelve { url, buffer, mimeType } (el buffer sirve para transcribir sin volver a descargar),
+// o null si no se pudo (el mensaje se guarda igual con su etiqueta).
 export async function guardarMediaWhatsapp(media) {
   if (!media?.id) return null
   try {
@@ -41,13 +42,14 @@ export async function guardarMediaWhatsapp(media) {
     })
 
     const mimeType = info.mime_type || media.mime_type || 'application/octet-stream'
+    const buffer = Buffer.from(contenido)
     const ruta = `inbox/entrante_${Date.now()}_${Math.random().toString(36).substring(7)}.${extensionDe(media, mimeType)}`
     const { error } = await supabaseAdmin.storage
       .from('chat-media')
-      .upload(ruta, Buffer.from(contenido), { contentType: mimeType, cacheControl: '3600', upsert: false })
+      .upload(ruta, buffer, { contentType: mimeType, cacheControl: '3600', upsert: false })
     if (error) throw new Error(error.message)
 
-    return supabaseAdmin.storage.from('chat-media').getPublicUrl(ruta).data.publicUrl
+    return { url: supabaseAdmin.storage.from('chat-media').getPublicUrl(ruta).data.publicUrl, buffer, mimeType }
   } catch (err) {
     console.error(`[MEDIA] No se pudo guardar el archivo ${media.id}:`, err.response?.data || err.message)
     return null
