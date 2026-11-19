@@ -35,6 +35,7 @@ export default function PaginaCampanas() {
   const [prospectosSeleccionados, setProspectosSeleccionados] = useState([])
   const [numerosImportar, setNumerosImportar] = useState('')
   const [cursoImportar, setCursoImportar] = useState('')
+  const [escuelaImportar, setEscuelaImportar] = useState('')
   const [importando, setImportando] = useState(false)
   const [resultadoImportar, setResultadoImportar] = useState(null)
 
@@ -204,7 +205,7 @@ export default function PaginaCampanas() {
       const resp = await fetch('/api/prospectos/importar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lineas: numerosImportar, curso_interes: cursoImportar })
+        body: JSON.stringify({ lineas: numerosImportar, curso_interes: cursoImportar, escuela: escuelaImportar })
       })
       const datos = await resp.json()
       if (!resp.ok) {
@@ -909,7 +910,7 @@ export default function PaginaCampanas() {
                           Agregar números
                         </h3>
                         <p className="text-xs text-slate-500 mb-4">
-                          Para personas que dejaron su número (muestreos, ferias). Uno por línea, con nombre opcional: <span className="font-mono">3121234567, Ana López</span>. WhatsApp solo permite escribirles primero con una plantilla aprobada.
+                          Para personas que dejaron su número (visitas a prepas, muestreos, ferias). Uno por línea, con nombre opcional: <span className="font-mono">3121234567, Ana López</span>. La escuela se guarda en cada ficha y se puede usar como <span className="font-mono">{'{escuela}'}</span> en las plantillas. WhatsApp solo permite escribirles primero con una plantilla aprobada.
                         </p>
                         <textarea
                           value={numerosImportar}
@@ -920,6 +921,13 @@ export default function PaginaCampanas() {
                           className="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 font-mono"
                         />
                         <div className="flex flex-wrap items-center gap-3 mt-3">
+                          <input
+                            value={escuelaImportar}
+                            onChange={e => setEscuelaImportar(e.target.value)}
+                            placeholder="Escuela o prepa (ej: PREPA ICEP)"
+                            aria-label="Escuela o prepa"
+                            className="flex-1 min-w-[180px] border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-blue-100"
+                          />
                           <input
                             value={cursoImportar}
                             onChange={e => setCursoImportar(e.target.value)}

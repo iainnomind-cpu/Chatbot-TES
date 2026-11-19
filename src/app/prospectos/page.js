@@ -35,6 +35,7 @@ function ContenidoProspectos() {
   const [filtroEstado, setFiltroEstado] = useState('Todos')
   const [filtroAnuncio, setFiltroAnuncio] = useState('Todos')
   const [filtroCurso, setFiltroCurso] = useState('Todos')
+  const [filtroEscuela, setFiltroEscuela] = useState('Todos')
   const [agruparPor, setAgruparPor] = useState('estado') // Columnas del Kanban: 'estado' | 'curso'
   const [filtroScores, setFiltroScores] = useState([]) // Vacío = todos los scores
   const [prospectoSeleccionado, setProspectoSeleccionado] = useState(null)
@@ -50,6 +51,7 @@ function ContenidoProspectos() {
     { nombre: 'nombre', etiqueta: 'Nombre del Tutor/Contacto', tipo: 'text', placeholder: 'Ej: María Ruiz' },
     { nombre: 'telefono', etiqueta: 'Teléfono (WhatsApp)', tipo: 'text', placeholder: '521...', requerido: true },
     { nombre: 'curso_interes', etiqueta: 'Curso de Interés', tipo: 'text', placeholder: 'Ej: Children' },
+    { nombre: 'escuela', etiqueta: 'Escuela / Prepa', tipo: 'text', placeholder: 'Ej: PREPA ICEP' },
     { nombre: 'parentesco', etiqueta: 'Relación con el Alumno', tipo: 'text', placeholder: 'Ej: Para mi hijo, Para mí' },
     { nombre: 'canal', etiqueta: 'Canal de Procedencia', tipo: 'text', placeholder: 'Messenger / Instagram / WhatsApp' },
     { nombre: 'edad', etiqueta: 'Edad', tipo: 'number', placeholder: 'Ej: 8' },
@@ -196,9 +198,9 @@ function ContenidoProspectos() {
   }, [prospectos, searchParams, router])
 
   const exportarCSV = () => {
-    const csvHeader = 'Alumno,Contacto/Tutor,Parentesco,Teléfono,Curso,Edad,Nivel,Estado,Lead Score,Anuncio,Creado\n'
+    const csvHeader = 'Alumno,Contacto/Tutor,Parentesco,Teléfono,Curso,Escuela,Edad,Nivel,Estado,Lead Score,Anuncio,Creado\n'
     const csvRows = prospectosFiltrados.map(p =>
-      `"${p.nombre_alumno || ''}","${p.nombre || ''}","${p.parentesco || ''}","${p.telefono || ''}","${p.curso_interes || ''}","${p.edad || ''}","${p.nivel || ''}","${p.estado || ''}","${p.lead_score || ''}","${nombreAnuncio(p) || ''}","${p.creado_en || ''}"`
+      `"${p.nombre_alumno || ''}","${p.nombre || ''}","${p.parentesco || ''}","${p.telefono || ''}","${p.curso_interes || ''}","${p.escuela || ''}","${p.edad || ''}","${p.nivel || ''}","${p.estado || ''}","${p.lead_score || ''}","${nombreAnuncio(p) || ''}","${p.creado_en || ''}"`
     ).join('\n')
     const blob = new Blob([csvHeader + csvRows], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -238,15 +240,24 @@ function ContenidoProspectos() {
   const opcionesCurso = Object.keys(conteoCursos).sort((a, b) => a.localeCompare(b, 'es'))
   const totalSinCurso = prospectos.filter(p => !cursoDe(p)).length
 
+  // Opciones de escuela/prepa (visitas a escuelas)
+  const conteoEscuelas = {}
+  prospectos.forEach(p => {
+    const escuela = (p.escuela || '').trim()
+    if (escuela) conteoEscuelas[escuela] = (conteoEscuelas[escuela] || 0) + 1
+  })
+  const opcionesEscuela = Object.keys(conteoEscuelas).sort((a, b) => a.localeCompare(b, 'es'))
+
   // Incluye los estados reales en BD (ej. "Borrador" que crea el webhook), no solo los base
   const estadosDisponibles = [...new Set([...ESTADOS_BASE, ...prospectos.map(p => normalizar(p.estado))])].filter(Boolean)
 
-  const hayFiltros = filtroEstado !== 'Todos' || filtroAnuncio !== 'Todos' || filtroCurso !== 'Todos' || filtroScores.length > 0
+  const hayFiltros = filtroEstado !== 'Todos' || filtroAnuncio !== 'Todos' || filtroCurso !== 'Todos' || filtroEscuela !== 'Todos' || filtroScores.length > 0
 
   const limpiarFiltros = () => {
     setFiltroEstado('Todos')
     setFiltroAnuncio('Todos')
     setFiltroCurso('Todos')
+    setFiltroEscuela('Todos')
     setFiltroScores([])
   }
 
@@ -261,6 +272,7 @@ function ContenidoProspectos() {
     if (filtroScores.length > 0 && !filtroScores.includes(normalizar(p.lead_score) || 'sin_score')) return false
     if (filtroCurso === SIN_CURSO && cursoDe(p)) return false
     if (filtroCurso !== 'Todos' && filtroCurso !== SIN_CURSO && cursoDe(p) !== filtroCurso) return false
+    if (filtroEscuela !== 'Todos' && (p.escuela || '').trim() !== filtroEscuela) return false
     return true
   })
 
@@ -349,6 +361,23 @@ function ContenidoProspectos() {
               <option value={SIN_CURSO}>Sin curso definido ({totalSinCurso})</option>
             </select>
           </div>
+
+          {opcionesEscuela.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl pl-3 pr-1 max-w-full">
+              <span className="material-symbols-outlined text-[16px] text-emerald-700">location_city</span>
+              <select
+                value={filtroEscuela}
+                onChange={(e) => setFiltroEscuela(e.target.value)}
+                aria-label="Filtrar por escuela o prepa"
+                className="bg-transparent py-2 pr-1 text-sm font-semibold text-slate-700 outline-none max-w-[220px]"
+              >
+                <option value="Todos">Todas las escuelas</option>
+                {opcionesEscuela.map(nombre => (
+                  <option key={nombre} value={nombre}>{nombre} ({conteoEscuelas[nombre]})</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {vista === 'kanban' && (
             <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
@@ -737,6 +766,12 @@ function ContenidoProspectos() {
                   <span className="text-[10px] text-blue-500 block mb-1">Canal de Origen</span>
                   <span className="font-bold text-blue-800 uppercase text-xs">{prospectoSeleccionado.canal || 'Desconocido'}</span>
                 </div>
+                {prospectoSeleccionado.escuela && (
+                  <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 col-span-2">
+                    <span className="text-[10px] text-emerald-600 block mb-1">🏫 Escuela / Prepa</span>
+                    <span className="font-bold text-emerald-900 text-xs">{prospectoSeleccionado.escuela}</span>
+                  </div>
+                )}
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-500 block mb-1">Etapa del embudo</span>
                   <span className="font-bold text-slate-800 text-xs">{prospectoSeleccionado.etapa_funnel || '1. Prospecto nuevo'}</span>

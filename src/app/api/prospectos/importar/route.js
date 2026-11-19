@@ -9,7 +9,7 @@ const MAX_LINEAS = 500
 // POST - Dar de alta números capturados a mano (muestreos, ferias) para poder enviarles plantillas
 export async function POST(solicitud) {
   try {
-    const { lineas, curso_interes } = await solicitud.json()
+    const { lineas, curso_interes, escuela } = await solicitud.json()
     const { validos, invalidos } = interpretarLineas(lineas)
 
     if (validos.size === 0) {
@@ -36,7 +36,8 @@ export async function POST(solicitud) {
         canal: 'whatsapp',
         estado: 'nuevo',
         curso_interes: curso_interes?.trim() || null,
-        notas_internas: 'Agregado manualmente desde Campañas'
+        escuela: escuela?.trim() || null,
+        notas_internas: escuela?.trim() ? `Agregado desde Campañas — visita a ${escuela.trim()}` : 'Agregado manualmente desde Campañas'
       }))
 
     let creados = []

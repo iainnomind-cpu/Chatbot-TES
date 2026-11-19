@@ -1,7 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { variablesDe, textoFinal, TOKEN_NOMBRE } from '@/lib/plantillasWhatsapp'
+import { variablesDe, textoFinal, valorPara, tokensSinDato, TOKENS, TOKEN_NOMBRE, TOKEN_ESCUELA } from '@/lib/plantillasWhatsapp'
+
+const PistaComodines = () => (
+  <p className="text-[11px] text-slate-400">
+    Comodines: <strong>{TOKEN_NOMBRE}</strong> pone el nombre de cada persona y <strong>{TOKEN_ESCUELA}</strong> su escuela o prepa.
+  </p>
+)
 
 // Envío directo a uno o varios prospectos: plantilla aprobada (siempre llega)
 // o mensaje libre (solo llega si la persona escribió en las últimas 24 horas)
@@ -34,14 +40,17 @@ export default function ModalEnviarMensaje({ prospectos, alCerrar }) {
   const elegirPlantilla = (p) => {
     setElegida(p)
     const vars = variablesDe(p.components?.find(c => c.type === 'BODY')?.text)
-    // La primera variable casi siempre es el nombre
-    setValores(vars.map((_, i) => (i === 0 ? TOKEN_NOMBRE : '')))
+    // La primera variable casi siempre es el nombre; la segunda suele ser la escuela
+    setValores(vars.map((_, i) => (i === 0 ? TOKEN_NOMBRE : i === 1 && TOKENS.length > 1 ? TOKEN_ESCUELA : '')))
     const ejemplo = p.components?.find(c => c.type === 'HEADER')?.example?.header_handle?.[0]
     setImagenUrl(ejemplo?.startsWith('http') ? ejemplo : '')
   }
 
+  // Prospectos a los que les falta algún dato que usan los comodines
+  const sinDato = prospectos.filter(p => tokensSinDato(modo === 'plantilla' ? valores : [texto], p).length > 0)
+
   const puedeEnviar = modo === 'plantilla'
-    ? elegida && valores.every(v => v.trim()) && (!necesitaImagen || imagenUrl.trim())
+    ? elegida && valores.every(v => v.trim()) && (!necesitaImagen || imagenUrl.trim()) && sinDato.length < prospectos.length
     : texto.trim()
 
   const enviar = async () => {
@@ -61,12 +70,17 @@ export default function ModalEnviarMensaje({ prospectos, alCerrar }) {
         const fallidos = []
         for (const p of prospectos) {
           const plataforma = ['messenger', 'instagram'].includes(p.canal) ? p.canal : 'whatsapp'
+          const faltantes = tokensSinDato([texto], p)
+          if (faltantes.length > 0) {
+            fallidos.push({ nombre: p.nombre_alumno || p.nombre || p.telefono, error: `Sin ${faltantes.join(' ni ')} en su ficha` })
+            continue
+          }
           try {
             const res = await fetch('/api/enviar-mensaje', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
-              body: JSON.stringify({ to: p.telefono, text: texto.split(TOKEN_NOMBRE).join(p.nombre_alumno || p.nombre || ''), plataforma })
+              body: JSON.stringify({ to: p.telefono, text: valorPara(texto, p), plataforma })
             })
             if (res.ok) enviados++
             else fallidos.push({ nombre: p.nombre_alumno || p.nombre || p.telefono, error: (await res.json()).error || 'No se entregó' })
@@ -171,8 +185,11 @@ export default function ModalEnviarMensaje({ prospectos, alCerrar }) {
                             />
                           </label>
                         ))}
-                        {variables.length > 0 && (
-                          <p className="text-[11px] text-slate-400">Escribe {TOKEN_NOMBRE} para usar el nombre de cada persona.</p>
+                        {variables.length > 0 && <PistaComodines />}
+                        {sinDato.length > 0 && (
+                          <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                            {sinDato.length} de {prospectos.length} no tienen {tokensSinDato(valores, sinDato[0]).join(' ni ')} en su ficha. A esas personas no se les enviará, para no mandar el mensaje incompleto.
+                          </p>
                         )}
                         {necesitaImagen && (
                           <label className="block">
@@ -203,7 +220,7 @@ export default function ModalEnviarMensaje({ prospectos, alCerrar }) {
                     aria-label="Mensaje"
                     className="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-100 resize-none"
                   />
-                  <p className="text-[11px] text-slate-400">Escribe {TOKEN_NOMBRE} para usar el nombre de cada persona.</p>
+                  <PistaComodines />
                 </>
               )}
             </div>

@@ -6,12 +6,33 @@ export function variablesDe(texto) {
 }
 
 export const TOKEN_NOMBRE = '{nombre}'
+export const TOKEN_ESCUELA = '{escuela}'
 
-const nombreDe = (p) => p?.nombre_alumno || p?.nombre || 'Hola'
+// Comodines que se sustituyen por el dato de cada prospecto al enviar
+const DATO_DE = {
+  [TOKEN_NOMBRE]: (p) => (p?.nombre_alumno || p?.nombre || '').trim() || 'Hola',
+  [TOKEN_ESCUELA]: (p) => (p?.escuela || '').trim(),
+}
 
-// Reemplaza el comodín {nombre} por el nombre de cada prospecto
+export const TOKENS = [
+  { token: TOKEN_NOMBRE, etiqueta: 'nombre' },
+  { token: TOKEN_ESCUELA, etiqueta: 'escuela' },
+]
+
+// Comodines usados en los valores que ese prospecto no tiene registrados
+export function tokensSinDato(valores, prospecto) {
+  const texto = [].concat(valores || []).join(' ')
+  return TOKENS.filter(({ token }) => texto.includes(token) && !DATO_DE[token](prospecto)).map(t => t.etiqueta)
+}
+
+// Reemplaza los comodines por los datos de cada prospecto
 export function valorPara(valor, prospecto) {
-  return (valor || '').split(TOKEN_NOMBRE).join(nombreDe(prospecto)).trim() || '-'
+  let salida = valor || ''
+  for (const { token } of TOKENS) {
+    if (salida.includes(token)) salida = salida.split(token).join(DATO_DE[token](prospecto))
+  }
+  // WhatsApp rechaza variables vacías o con saltos de línea
+  return salida.replace(/\s+/g, ' ').trim() || '-'
 }
 
 // Texto que verá el prospecto, para guardarlo en el inbox

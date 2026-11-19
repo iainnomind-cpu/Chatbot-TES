@@ -1,7 +1,7 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 import axios from 'axios'
-import { construirPayload, textoFinal } from '@/lib/plantillasWhatsapp'
+import { construirPayload, textoFinal, tokensSinDato } from '@/lib/plantillasWhatsapp'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -51,7 +51,7 @@ export async function POST(solicitud) {
     if (!plantilla) return NextResponse.json({ error: 'La plantilla no existe o no está aprobada por Meta' }, { status: 400 })
 
     const { data: prospectos, error } = await supabase.from('prospectos')
-      .select('id, telefono, nombre, nombre_alumno, canal').in('id', prospectos_ids)
+      .select('id, telefono, nombre, nombre_alumno, canal, escuela').in('id', prospectos_ids)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     const url = `https://graph.facebook.com/v20.0/${process.env.META_PHONE_NUMBER_ID}/messages`
@@ -63,6 +63,12 @@ export async function POST(solicitud) {
       // Messenger e Instagram guardan IDs internos, no números
       if (['messenger', 'instagram'].includes(prospecto.canal) || !/^\d{11,15}$/.test(prospecto.telefono || '')) {
         fallidos.push({ nombre, error: 'No tiene número de WhatsApp' })
+        continue
+      }
+      // Mejor no enviar que mandar la plantilla con un hueco ("visita a -")
+      const faltantes = tokensSinDato(valores, prospecto)
+      if (faltantes.length > 0) {
+        fallidos.push({ nombre, error: `Sin ${faltantes.join(' ni ')} en su ficha` })
         continue
       }
       const payload = construirPayload({ to: prospecto.telefono, plantilla, valores, imagenUrl: imagen_url, prospecto })
