@@ -4,6 +4,17 @@ import axios from 'axios'
 
 export const dynamic = 'force-dynamic'
 
+const CANALES_REDES = ['messenger', 'instagram']
+
+// Messenger e Instagram usan IDs internos; WhatsApp necesita un teléfono. Los prospectos
+// importados o creados a mano suelen traer el canal vacío y sí se les puede escribir.
+export function puedeRecibir(prospecto, canalCampana) {
+  const canalProspecto = (prospecto?.canal || '').toLowerCase()
+  if (CANALES_REDES.includes(canalCampana)) return canalProspecto === canalCampana && !!prospecto.telefono
+  if (CANALES_REDES.includes(canalProspecto)) return false
+  return /^\d{10,15}$/.test((prospecto?.telefono || '').replace(/\D/g, ''))
+}
+
 export async function POST(solicitud) {
   try {
     const cuerpoSolicitud = await solicitud.json()
@@ -35,25 +46,20 @@ export async function POST(solicitud) {
        return NextResponse.json({ error: 'Falta configurar el "Nombre de Plantilla" de Meta en la campaña' }, { status: 400 })
     }
 
-    // 2. Obtener lista de prospectos
+    // 2. Obtener lista de prospectos (candidatos = antes de revisar si pueden recibir el mensaje)
     let prospectos = []
-    
+    let candidatos = []
+
     if (cuerpoSolicitud.prospectos_ids && Array.isArray(cuerpoSolicitud.prospectos_ids) && cuerpoSolicitud.prospectos_ids.length > 0) {
       // Audiencia Dinámica temporal (desde UI rápida)
       console.log('📌 Usando prospectos_ids personalizados');
-      let query = supabase
+      const { data: pDatos, error: errP } = await supabase
         .from('prospectos')
         .select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal')
         .in('id', cuerpoSolicitud.prospectos_ids);
-      // Los elegidos a mano pueden venir de importaciones con otro canal (ej. "importacion"):
-      // para WhatsApp basta con que no sean IDs de Messenger/Instagram
-      query = (campana.canal || 'whatsapp') === 'whatsapp'
-        ? query.or('canal.is.null,canal.not.in.(messenger,instagram)')
-        : query.eq('canal', campana.canal);
-      const { data: pDatos, error: errP } = await query;
-        
+
       if (errP) return NextResponse.json({ error: 'Error obteniendo audiencia: ' + errP.message }, { status: 500 });
-      prospectos = pDatos || [];
+      candidatos = pDatos || [];
     } else if (campana.audiencia_id) {
       // USAR AUDIENCIA GUARDADA
       console.log('📌 Usando Audiencia Guardada ID:', campana.audiencia_id);
@@ -61,10 +67,9 @@ export async function POST(solicitud) {
       
       if (errAud || !aud) return NextResponse.json({ error: 'Audiencia vinculada no encontrada' }, { status: 404 });
 
+      // El canal se revisa después: los prospectos importados o creados a mano pueden
+      // traer el canal vacío y antes quedaban fuera sin explicación
       let query = supabase.from('prospectos').select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal');
-      
-      // Filtrar estrictamente por el canal de la campaña para no mezclar IDs
-      query = query.eq('canal', campana.canal || 'whatsapp');
 
       if (aud.prospectos_incluidos && aud.prospectos_incluidos.length > 0) {
         query = query.in('id', aud.prospectos_incluidos);
@@ -78,12 +83,10 @@ export async function POST(solicitud) {
       // Filtrado por flexibilidad (requiere lógica extra si es un string complejo, pero aplicamos el básico)
       const { data: pros, error: errPros } = await query;
       if (errPros) return NextResponse.json({ error: 'Error en audiencia guardada: ' + errPros.message }, { status: 500 });
-      prospectos = pros || [];
+      candidatos = pros || [];
     } else {
       // Audiencia Estática Tradicional (filtros directos en la campaña)
       let query = supabase.from('prospectos').select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal')
-      
-      query = query.eq('canal', campana.canal || 'whatsapp');
 
       if (campana.publico_estado && campana.publico_estado !== 'Todos') {
         const dbEstado = campana.publico_estado.toLowerCase().replace(' ', '_')
@@ -96,11 +99,21 @@ export async function POST(solicitud) {
 
       const { data: pros, error: errPros } = await query
       if (errPros) return NextResponse.json({ error: 'Error obteniendo audiencia estática: ' + errPros.message }, { status: 500 })
-      prospectos = pros || [];
+      candidatos = pros || [];
     }
 
-    if (!prospectos || prospectos.length === 0) {
-      return NextResponse.json({ error: 'La audiencia está vacía. Nadie cumple los filtros.' }, { status: 400 })
+    const canalCampana = campana.canal || 'whatsapp'
+    prospectos = candidatos.filter(p => puedeRecibir(p, canalCampana))
+
+    if (prospectos.length === 0) {
+      return NextResponse.json({
+        error: candidatos.length > 0
+          ? `La audiencia tiene ${candidatos.length} contacto(s), pero ninguno puede recibir por ${canalCampana}: revisa que tengan teléfono (10 dígitos o más) y que no sean contactos de Messenger o Instagram.`
+          : 'La audiencia está vacía. Nadie cumple los filtros.',
+      }, { status: 400 })
+    }
+    if (prospectos.length < candidatos.length) {
+      console.warn(`⚠️ Se omiten ${candidatos.length - prospectos.length} contacto(s) sin teléfono válido para ${canalCampana}`)
     }
 
     // 3. Ejecutar envío masivo a WhatsApp, Messenger o Instagram via Meta API

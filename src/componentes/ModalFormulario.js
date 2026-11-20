@@ -93,7 +93,9 @@ export default function ModalFormulario({ abierto, alCerrar, titulo, campos, alE
           {campos.map((campo) => (
             <div key={campo.nombre} className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">{campo.etiqueta}</label>
-              {campo.tipo === 'textarea' ? (
+              {campo.tipo === 'custom' ? (
+                campo.render()
+              ) : campo.tipo === 'textarea' ? (
                 <textarea
                   className="w-full rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm p-3"
                   placeholder={campo.placeholder}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import ModalFormulario from '@/componentes/ModalFormulario'
+import SelectorDestinatarios from '@/componentes/SelectorDestinatarios'
 import ConstructorPlantilla from '@/componentes/ConstructorPlantilla'
 
 
@@ -36,6 +37,8 @@ export default function PaginaCampanas() {
   const [numerosImportar, setNumerosImportar] = useState('')
   const [cursoImportar, setCursoImportar] = useState('')
   const [escuelaImportar, setEscuelaImportar] = useState('')
+  // A quién se le envía la campaña: personas marcadas aquí o un segmento ya guardado
+  const [destinatarios, setDestinatarios] = useState({ modo: 'personas', ids: [], audiencia_id: '' })
   const [importando, setImportando] = useState(false)
   const [resultadoImportar, setResultadoImportar] = useState(null)
 
@@ -82,11 +85,15 @@ export default function PaginaCampanas() {
       requerido: false
     },
     {
-      nombre: 'audiencia_id', etiqueta: 'Audiencia Guardada (Segmento)', tipo: 'select', requerido: false,
-      opciones: [
-        { valor: '', etiqueta: 'Sin segmento — usar Audiencias Dinámicas' },
-        ...audienciasGuardadas.map(a => ({ valor: a.id, etiqueta: `📍 ${a.nombre} (${a.total_estimado} pers.)` }))
-      ]
+      nombre: 'destinatarios', etiqueta: '¿A quién se le envía?', tipo: 'custom',
+      render: () => (
+        <SelectorDestinatarios
+          prospectos={prospectosAud}
+          audiencias={audienciasGuardadas}
+          valor={destinatarios}
+          onChange={setDestinatarios}
+        />
+      )
     },
     { nombre: 'imagen_url', etiqueta: 'Imagen de la campaña (URL o archivo)', tipo: 'image_upload', placeholder: 'https://...', requerido: false },
     { nombre: 'mensaje', etiqueta: 'Notas Internas', tipo: 'textarea', placeholder: 'Notas sobre esta campaña...', requerido: false },
@@ -241,8 +248,33 @@ export default function PaginaCampanas() {
   const deseleccionarTodos = () => setProspectosSeleccionados([])
   const todosSeleccionados = prospectosFiltrados.length > 0 && prospectosFiltrados.every(p => prospectosSeleccionados.includes(p.id))
 
+  // Convierte lo elegido en el modal en un audiencia_id; si marcaron personas, crea el segmento solo
+  const resolverAudiencia = async (nombreCampana) => {
+    if (destinatarios.modo === 'segmento') return destinatarios.audiencia_id || null
+    if (!destinatarios.ids.length) return null
+    const resp = await fetch('/api/audiencias', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: `${nombreCampana || 'Campaña'} — ${destinatarios.ids.length} persona(s)`,
+        prospectos_incluidos: destinatarios.ids,
+        total_estimado: destinatarios.ids.length,
+      }),
+    })
+    if (!resp.ok) throw new Error((await resp.json()).error || 'No se pudo guardar el segmento')
+    const audiencia = await resp.json()
+    const r2 = await fetch('/api/audiencias')
+    const d2 = await r2.json()
+    setAudienciasGuardadas(Array.isArray(d2) ? d2 : [])
+    return audiencia.id
+  }
+
   const crearCampana = async (datos) => {
     try {
+      if (destinatarios.modo === 'personas' && destinatarios.ids.length === 0) {
+        return alert('Marca al menos una persona, o elige un segmento guardado.')
+      }
+      datos.audiencia_id = await resolverAudiencia(datos.nombre)
       const respuesta = await fetch('/api/campanas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -262,6 +294,7 @@ export default function PaginaCampanas() {
 
   const editarCampana = async (datos) => {
     try {
+      datos.audiencia_id = await resolverAudiencia(datos.nombre) ?? datos.audiencia_id ?? null
       const respuesta = await fetch('/api/campanas', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -357,6 +390,9 @@ export default function PaginaCampanas() {
 
   const abrirEditar = (campana) => {
     setCampanaEditando(campana)
+    setDestinatarios(campana.audiencia_id
+      ? { modo: 'segmento', ids: [], audiencia_id: campana.audiencia_id }
+      : { modo: 'personas', ids: [], audiencia_id: '' })
     setModalAbierto(true)
   }
 
@@ -626,7 +662,7 @@ export default function PaginaCampanas() {
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h2 className="text-xl font-bold text-slate-800">Campañas Automatizadas</h2>
                 <button
-                  onClick={() => { setCampanaEditando(null); setModalAbierto(true); }}
+                  onClick={() => { setCampanaEditando(null); setDestinatarios({ modo: 'personas', ids: [], audiencia_id: '' }); setModalAbierto(true); }}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg shadow-sm shadow-blue-500/30 flex items-center gap-2 transition-all"
                 >
                   <span className="material-symbols-outlined text-[20px]">add</span>
