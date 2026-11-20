@@ -29,11 +29,29 @@ export default function ModalFormulario({ abierto, alCerrar, titulo, campos, alE
     
     setSubiendoArchivo(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
       // Obtenemos el token de la sesión actual del ERP
       const token = localStorage.getItem('te_token') || document.cookie.split('te_session=')[1]?.split(';')[0];
+
+      // Los archivos grandes (videos) no caben en una petición al servidor: van directo
+      // a Supabase con una URL firmada, igual que los adjuntos del inbox
+      if (file.size > 4 * 1024 * 1024) {
+        const firma = await fetch('/api/upload/signed-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          credentials: 'include',
+          body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+        });
+        if (!firma.ok) throw new Error((await firma.json()).error || 'No se pudo preparar la subida');
+        const { signedUrl, publicUrl } = await firma.json();
+        const subida = await fetch(signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+        if (!subida.ok) throw new Error('No se pudo subir el archivo a Supabase');
+        manejarCambio(nombreCampo, publicUrl);
+        setSubiendoArchivo(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -168,11 +186,11 @@ export default function ModalFormulario({ abierto, alCerrar, titulo, campos, alE
                   />
                   <input 
                     type="file" 
-                    accept="image/*"
+                    accept="image/*,video/mp4"
                     onChange={(e) => handleFileUpload(campo.nombre, e)}
                     className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-[#00236f] hover:file:bg-blue-100 cursor-pointer transition-colors"
                   />
-                  {subiendoArchivo && <p className="text-[11px] text-blue-600 font-bold animate-pulse">Subiendo imagen al servidor de Supabase...</p>}
+                  {subiendoArchivo && <p className="text-[11px] text-blue-600 font-bold animate-pulse">Subiendo archivo al servidor de Supabase...</p>}
                 </div>
               ) : (
                 <input
