@@ -50,6 +50,8 @@ export default function PaginaCampanas() {
     { nombre: 'palabras_clave', etiqueta: 'Palabras clave (separadas por coma)', tipo: 'text', placeholder: 'beca prepa, beca alianza, icep' },
     { nombre: 'respuesta_inicial', etiqueta: 'Respuesta inicial', tipo: 'textarea', placeholder: 'Lo primero que responde el bot...', requerido: true },
     { nombre: 'respuesta_precios', etiqueta: 'Respuesta si preguntan precios', tipo: 'textarea', placeholder: 'Inscripción única: $800 en lugar de $2,400...' },
+    { nombre: 'imagen_precios', etiqueta: 'Imagen que acompaña los precios (tabla del convenio)', tipo: 'image_upload', placeholder: 'https://...' },
+    { nombre: 'imagen_inicial', etiqueta: 'Imagen del mensaje inicial (opcional)', tipo: 'image_upload', placeholder: 'https://...' },
     { nombre: 'detalles', etiqueta: 'Datos para dudas (material, edades, niveles)', tipo: 'textarea' },
     { nombre: 'activa', etiqueta: 'Activa', tipo: 'toggle' },
   ]

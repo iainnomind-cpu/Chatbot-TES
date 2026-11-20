@@ -31,6 +31,21 @@ export function becaDeEscuela(escuela, becas) {
   return (becas || []).find(b => b.activa !== false && limpiar(b.escuela) === buscada) || null
 }
 
+// Primeros caracteres útiles de un texto, para reconocerlo dentro de la respuesta
+const inicioDe = (t) => limpiar(t).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)
+
+// Imagen que debe acompañar la respuesta: la tabla de precios cuando contesta costos,
+// o la del mensaje inicial. Devuelve null si esa beca no tiene imagen configurada.
+export function imagenParaRespuesta(beca, respuesta, intencion) {
+  if (!beca) return null
+  const texto = limpiar(respuesta).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (beca.imagen_precios && beca.respuesta_precios && texto.includes(inicioDe(beca.respuesta_precios))) return beca.imagen_precios
+  if (beca.imagen_inicial && beca.respuesta_inicial && texto.includes(inicioDe(beca.respuesta_inicial))) return beca.imagen_inicial
+  // Respaldo: contestó sobre costos aunque haya cambiado el saludo
+  if (beca.imagen_precios && intencion === 'PRICE_FOLLOWUP') return beca.imagen_precios
+  return null
+}
+
 // Bloque que se añade al contexto de Alex con los textos exactos de la beca
 export function construirContextoBeca(beca) {
   if (!beca) return ''

@@ -13,7 +13,7 @@ import { normalizarCurso } from "@/lib/cursos";
 import { cifrasNoAutorizadas, MENSAJE_SIN_DATO } from "@/lib/guardias";
 import { etapaSugerida, etapaAAvanzar } from "@/lib/etapas";
 import { construirTablaCursos } from "@/lib/tablaCursos";
-import { detectarBeca, becaDeEscuela, construirContextoBeca } from "@/lib/becas";
+import { detectarBeca, becaDeEscuela, construirContextoBeca, imagenParaRespuesta } from "@/lib/becas";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -763,6 +763,7 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
 
     // === BECA POR CONVENIO (flyers de prepas: el alumno escribe "BECA PREPA") ===
     let becaContexto = '';
+    let becaActiva = null;
     try {
       const { data: becasDb } = await supabase.from('becas_convenio').select('*').eq('activa', true);
       if (becasDb && becasDb.length > 0) {
@@ -771,6 +772,7 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
           || becasDb.find(b => b.id === convFull?.beca_id)
           || becaDeEscuela(freshPros.escuela, becasDb);
         if (beca) {
+          becaActiva = beca;
           becaContexto = construirContextoBeca(beca);
           console.log(`🎓 [BECA] Convenio activo: ${beca.escuela} para ${remitenteId}`);
           if (convFull?.beca_id !== beca.id) {
@@ -1331,6 +1333,17 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         datos.imagen !== "Desconocido"
       ) {
         imgUrl = imagenUrl;
+      }
+
+      // La beca manda su propia imagen (p. ej. la tabla de precios del convenio)
+      if (!imgUrl && becaActiva) {
+        const imagenBeca = imagenParaRespuesta(becaActiva, respuestaLimpia, intencion);
+        if (imagenBeca) {
+          imgUrl = imagenBeca.startsWith("http")
+            ? imagenBeca
+            : `${process.env.NEXT_PUBLIC_BASE_URL || "https://erp-total-english.vercel.app"}/${imagenBeca.replace(/^\//, "")}`;
+          console.log(`🖼️ [BECA] Se adjunta la imagen de ${becaActiva.escuela}`);
+        }
       }
     } catch (imgErr) {
       console.error("❌ Error preparando imagen:", imgErr.message);
