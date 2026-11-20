@@ -40,6 +40,53 @@ export default function PaginaCampanas() {
   const [escuelaImportar, setEscuelaImportar] = useState('')
   // A quién se le envía la campaña: personas marcadas aquí o un segmento ya guardado
   const [destinatarios, setDestinatarios] = useState({ modo: 'personas', ids: [], audiencia_id: '' })
+  // Becas por convenio con escuelas
+  const [becas, setBecas] = useState([])
+  const [modalBeca, setModalBeca] = useState(false)
+  const [becaEditando, setBecaEditando] = useState(null)
+
+  const camposBeca = [
+    { nombre: 'escuela', etiqueta: 'Escuela con convenio', tipo: 'text', placeholder: 'Ej: Prepa ICEP', requerido: true },
+    { nombre: 'palabras_clave', etiqueta: 'Palabras clave (separadas por coma)', tipo: 'text', placeholder: 'beca prepa, beca alianza, icep' },
+    { nombre: 'respuesta_inicial', etiqueta: 'Respuesta inicial', tipo: 'textarea', placeholder: 'Lo primero que responde el bot...', requerido: true },
+    { nombre: 'respuesta_precios', etiqueta: 'Respuesta si preguntan precios', tipo: 'textarea', placeholder: 'Inscripción única: $800 en lugar de $2,400...' },
+    { nombre: 'detalles', etiqueta: 'Datos para dudas (material, edades, niveles)', tipo: 'textarea' },
+    { nombre: 'activa', etiqueta: 'Activa', tipo: 'toggle' },
+  ]
+
+  const cargarBecas = async () => {
+    try {
+      const res = await fetch('/api/becas')
+      const datos = await res.json()
+      setBecas(Array.isArray(datos) ? datos : [])
+    } catch (e) {
+      console.error('Error cargando becas', e)
+    }
+  }
+
+  const guardarBeca = async (datos) => {
+    try {
+      const res = await fetch('/api/becas', {
+        method: becaEditando ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(becaEditando ? { ...datos, id: becaEditando.id } : datos),
+      })
+      if (!res.ok) return alert('Error: ' + ((await res.json()).error || 'No se pudo guardar'))
+      setModalBeca(false)
+      setBecaEditando(null)
+      cargarBecas()
+    } catch (e) {
+      alert('Error de conexión: ' + e.message)
+    }
+  }
+
+  const eliminarBeca = async (id) => {
+    if (!confirm('¿Eliminar esta beca? El bot dejará de responder sus palabras clave.')) return
+    const res = await fetch(`/api/becas?id=${id}`, { method: 'DELETE' })
+    if (res.ok) cargarBecas()
+    else alert('No se pudo eliminar')
+  }
+
   // Plantilla de la campaña y el valor de cada una de sus variables
   const [plantillaCampana, setPlantillaCampana] = useState({ nombre: '', valores: [] })
 
@@ -180,6 +227,7 @@ export default function PaginaCampanas() {
   useEffect(() => {
     cargarCampanas()
     cargarPlantillasMeta()
+    cargarBecas()
 
     // Cargar base de datos prospectos para audiencias
     const cargarProspectos = async () => {
@@ -590,6 +638,14 @@ export default function PaginaCampanas() {
             <span className="material-symbols-outlined text-[20px]">campaign</span>
             Anuncios CTWA ({anuncios.length})
             {tabActivo === 'anuncios' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600"></div>}
+          </button>
+          <button
+            className={`px-6 py-4 text-sm font-semibold flex items-center gap-2 transition-colors relative ${tabActivo === 'becas' ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-800'}`}
+            onClick={() => setTabActivo('becas')}
+          >
+            <span className="material-symbols-outlined text-[20px]">school</span>
+            Becas ({becas.length})
+            {tabActivo === 'becas' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600"></div>}
           </button>
         </div>
 
@@ -1403,6 +1459,77 @@ export default function PaginaCampanas() {
           onClose={() => setMostrarConstructorPlantilla(false)}
           onCreated={() => { cargarPlantillasMeta(); setMostrarConstructorPlantilla(false) }}
         />
+      )}
+
+      {/* TAB: BECAS POR CONVENIO */}
+      {tabActivo === 'becas' && (
+        <div className="p-6 md:p-8 animate-fade-in">
+          <div className="flex justify-between items-start mb-6 flex-wrap gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-700">school</span>
+                Becas por convenio
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+                Cuando un alumno escribe una de las palabras clave (por ejemplo <span className="font-mono">BECA PREPA</span>), Alex responde con estos textos tal cual, sin inventar cifras, y ofrece agendar la clase de cortesía.
+              </p>
+            </div>
+            <button
+              onClick={() => { setBecaEditando(null); setModalBeca(true) }}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-5 rounded-lg shadow-sm flex items-center gap-2 transition-all"
+            >
+              <span className="material-symbols-outlined text-[20px]">add</span>
+              Nueva beca
+            </button>
+          </div>
+
+          {becas.length === 0 ? (
+            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400">
+              <span className="material-symbols-outlined text-4xl mb-2">school</span>
+              <p className="font-bold">Aún no hay becas configuradas.</p>
+              <p className="text-sm">Agrega una escuela con convenio para que el bot responda sus palabras clave.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {becas.map(beca => (
+                <div key={beca.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-black text-slate-800 uppercase tracking-tight">{beca.escuela}</h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${beca.activa ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {beca.activa ? 'ACTIVA' : 'PAUSADA'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => { setBecaEditando(beca); setModalBeca(true) }} aria-label="Editar beca" className="w-8 h-8 rounded-full flex items-center justify-center text-blue-600 hover:bg-blue-50">
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                      </button>
+                      <button onClick={() => eliminarBeca(beca.id)} aria-label="Eliminar beca" className="w-8 h-8 rounded-full flex items-center justify-center text-red-600 hover:bg-red-50">
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {(beca.palabras_clave || []).map(p => (
+                      <span key={p} className="text-[11px] font-mono bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-full">{p}</span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-3 line-clamp-3 whitespace-pre-wrap">{beca.respuesta_inicial}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <ModalFormulario
+            abierto={modalBeca}
+            alCerrar={() => { setModalBeca(false); setBecaEditando(null) }}
+            titulo={becaEditando ? 'Editar beca por convenio' : 'Nueva beca por convenio'}
+            campos={camposBeca}
+            alEnviar={guardarBeca}
+            textoBoton={becaEditando ? 'Guardar cambios' : 'Crear beca'}
+            datosIniciales={becaEditando ? { ...becaEditando, palabras_clave: (becaEditando.palabras_clave || []).join(', ') } : { activa: true }}
+          />
+        </div>
       )}
 
       {/* Modal: Lanzar Campaña Dinámica */}

@@ -8,6 +8,7 @@ import { consultarAlex } from '../src/lib/alexIA.js'
 import { construirTablaCursos } from '../src/lib/tablaCursos.js'
 import { quitarOfertasFueraDeEdad } from '../src/lib/ofertasCursos.js'
 import { cifrasNoAutorizadas, MENSAJE_SIN_DATO } from '../src/lib/guardias.js'
+import { construirContextoBeca } from '../src/lib/becas.js'
 
 const args = process.argv.slice(2)
 const soloIdx = args.indexOf('--solo')
@@ -30,11 +31,21 @@ const CURSOS = [
   { nombre: 'My Time', nivel: 'Abierto', edad_minima: 18, edad_maxima: 99, beneficios: '⏰ MY TIME: inglés para adultos con horarios flexibles, tú eliges cuándo asistir. Avance a tu ritmo con tutor. 💰 Inversión: desde $1,750 mensual, inscripción GRATIS.', precio_ancla: 'desde $1,750 mensual', imagen_url: 'MYTIME.jpg' },
   { nombre: 'Business English Workshop', nivel: 'A2', es_especial: true, edad_minima: 27, edad_maxima: 99, fecha_inicio_vigencia: '2026-10-02', fecha_fin_vigencia: '2027-01-31', beneficios: 'Business English Workshop es nuestro Curso-Taller de Inglés para Negocios. Está dirigido a personas que ya tienen bases de Inglés y quieren usarlo con mayor seguridad en reuniones, ventas, networking, llamadas, presentaciones y otras situaciones profesionales. El Nivel 1 inicia el sábado 7 de noviembre, de 9:00 am a 12:00 pm, dura 4 meses. La inversión es desde $1,750 mensual y la inscripción es GRATIS. También tenemos opción de 2 pagos de $3,250 y pago total de $5,900, con mayor ahorro. En los planes de 2 pagos y pago total el material está incluido.', precio_ancla: 'desde $1,750 mensual', imagen_url: 'BUSINESS.jpg' },
 ]
+// Beca por convenio, con los mismos textos que trae migration_becas.sql
+const BECA_ICEP = {
+  escuela: 'Prepa ICEP',
+  activa: true,
+  palabras_clave: ['beca prepa', 'beca alianza', 'prepa icep', 'icep'],
+  respuesta_inicial: '¡Hola! Por ser estudiante de Prepa ICEP, puedes solicitar la Beca Alianza Educativa ICEP – Total English, con inscripción y colegiaturas preferenciales en el Diplomado PRIME.\n\nPracticas y elevas tu Inglés, desde tu nivel actual, en grupos reducidos y con tutorías sin costo. Además nuestro sistema te GARANTIZA speaking real.\n\n¿Te gustaría agendar una visita para tomar una clase de cortesía y hacer un diagnóstico personalizado de Inglés? Ambos son sin costo.',
+  respuesta_precios: 'Con el convenio de Prepa ICEP, estos son tus beneficios en pesos mexicanos:\n\nInscripción única: $800 en lugar de $2,400. Ahorras $1,600 (67% aprox.).\nMeses 1 a 3: $1,100 al mes. Ahorras $750 al mes (41% aprox.).\nMeses 4 a 10: $1,300 al mes. Ahorras $550 al mes (30% aprox.).\n\nTu ahorro anual es de $8,800 en 12 meses, con inscripción incluida. La colegiatura regular es de $1,850 al mes y tienes un ahorro de $550 al mes del mes 4 al 12.\n\n¿Te ayudo a agendar tu clase de cortesía y tu diagnóstico personalizado de Inglés? Ambos son sin costo.',
+  detalles: 'MATERIAL: $900 por nivel en los niveles 1 y 2, y $1,300 en los niveles 3 a 5. El material va aparte del cálculo de ahorro.\nPROGRAMA: PRIME es para jóvenes desde los 14 años y va de A1 a B2 en cinco niveles.\nPROGRAMA COMPLETO: $18,700 de ahorro en 30 meses, con inscripción incluida.',
+}
+
 const hoy = new Date().toISOString().split('T')[0]
 const TABLA = construirTablaCursos(CURSOS, hoy)
 
 // ---------- Simulación de lo que hace el webhook alrededor de Alex ----------
-function contextoCrm(perfil, flujoDiagnostico) {
+function contextoCrm(perfil, flujoDiagnostico, beca) {
   return `CONTEXTO ACTUAL DEL PROSPECTO:
         Fecha de Hoy: ${new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         Nombre Alumno: ${perfil.nombre_alumno || 'Desconocido'}
@@ -47,13 +58,14 @@ function contextoCrm(perfil, flujoDiagnostico) {
         No hay citas agendadas aún.
 
         IMPORTANTE: Si ya conoces estos datos, NO los preguntes de nuevo. Solo avanza al siguiente paso del flujo.
-        ${flujoDiagnostico ? 'FLUJO_CAMPANA: DIAGNOSTICO' : ''}`
+        ${flujoDiagnostico ? 'FLUJO_CAMPANA: DIAGNOSTICO' : ''}
+        ${construirContextoBeca(beca)}`
 }
 
 const esValido = (v) => v && !['...', 'desconocido', 'n/a', 'null', 'usuario'].includes(String(v).toLowerCase())
 
-async function turno(historial, perfil, flujoDiagnostico) {
-  const mensajes = [{ role: 'system', content: contextoCrm(perfil, flujoDiagnostico) }, ...historial]
+async function turno(historial, perfil, flujoDiagnostico, beca) {
+  const mensajes = [{ role: 'system', content: contextoCrm(perfil, flujoDiagnostico, beca) }, ...historial]
   const bruto = await consultarAlex(mensajes, 'Prospecto', 'WhatsApp', TABLA, null, flujoDiagnostico)
   const final = { ...bruto, respuesta: (bruto.respuesta || '').replace(/\\n/g, '\n').trim(), guardias: [] }
 
@@ -61,7 +73,7 @@ async function turno(historial, perfil, flujoDiagnostico) {
   const edades = [bruto.datos?.edad, perfil.edad]
   const revisada = quitarOfertasFueraDeEdad(final.respuesta, bruto.opciones, CURSOS, edades)
   if (revisada.quitadas.length) { final.respuesta = revisada.texto; final.opciones = revisada.opciones; final.guardias.push(`oferta quitada: ${revisada.quitadas.join(', ')}`) }
-  const cifras = bruto.intencion === 'TRANSFER_HUMANO' ? [] : cifrasNoAutorizadas(final.respuesta, TABLA)
+  const cifras = bruto.intencion === 'TRANSFER_HUMANO' ? [] : cifrasNoAutorizadas(final.respuesta, TABLA + construirContextoBeca(beca))
   if (cifras.length) { final.respuesta = MENSAJE_SIN_DATO; final.intencion = 'TRANSFER_HUMANO'; final.opciones = null; final.guardias.push(`cifra retenida: $${cifras.join(', $')}`) }
 
   // Memoria del CRM como la actualiza el webhook
@@ -139,6 +151,30 @@ const ESCENARIOS = [
     ],
   },
   {
+    // Flyer de la prepa: el alumno llega por wa.link y escribe la palabra clave
+    nombre: 'Beca por convenio: textos exactos de la escuela',
+    beca: BECA_ICEP,
+    turnos: [
+      {
+        usuario: 'Hola, vengo por la BECA PREPA',
+        esperar: {
+          contiene: /beca alianza educativa icep/i,
+          contiene2: /clase de cortes[ií]a/i,
+          noContiene: /\$/,
+          sinGuardias: true,
+        },
+      },
+      {
+        usuario: '¿Cuánto cuesta?',
+        esperar: { contiene: '$800', contiene2: '$1,100', contiene3: '$8,800', sinGuardias: true },
+      },
+      {
+        usuario: '¿Y el material cuánto sale?',
+        esperar: { contiene: '$900', noContiene: /18,700/, sinGuardias: true },
+      },
+    ],
+  },
+  {
     nombre: 'Precio durante perfilamiento: sin cifras inventadas',
     turnos: [
       { usuario: 'Hola, ¿cuánto cuesta el curso para adultos?', esperar: { sinGuardias: true, noIntencion: 'COURSE_RECOMMENDED' } },
@@ -209,7 +245,7 @@ async function correrEscenario(esc) {
     for (const u of [].concat(t.usuario)) historial.push({ role: 'user', content: u })
     let r
     try {
-      r = await turno(historial, perfil, !!esc.flujoDiagnostico)
+      r = await turno(historial, perfil, !!esc.flujoDiagnostico, esc.beca)
     } catch (e) {
       resultado.fallos.push(`turno ${i + 1}: error llamando al modelo: ${e.message}`)
       break

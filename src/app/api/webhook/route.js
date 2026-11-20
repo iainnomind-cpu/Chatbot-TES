@@ -13,6 +13,7 @@ import { normalizarCurso } from "@/lib/cursos";
 import { cifrasNoAutorizadas, MENSAJE_SIN_DATO } from "@/lib/guardias";
 import { etapaSugerida, etapaAAvanzar } from "@/lib/etapas";
 import { construirTablaCursos } from "@/lib/tablaCursos";
+import { detectarBeca, becaDeEscuela, construirContextoBeca } from "@/lib/becas";
 import axios from "axios";
 
 export const maxDuration = 60;
@@ -760,6 +761,32 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
       }
     }
 
+    // === BECA POR CONVENIO (flyers de prepas: el alumno escribe "BECA PREPA") ===
+    let becaContexto = '';
+    try {
+      const { data: becasDb } = await supabase.from('becas_convenio').select('*').eq('activa', true);
+      if (becasDb && becasDb.length > 0) {
+        // La del mensaje; si no, la que ya se venía hablando; si no, la de su escuela registrada
+        const beca = detectarBeca(texto, becasDb)
+          || becasDb.find(b => b.id === convFull?.beca_id)
+          || becaDeEscuela(freshPros.escuela, becasDb);
+        if (beca) {
+          becaContexto = construirContextoBeca(beca);
+          console.log(`🎓 [BECA] Convenio activo: ${beca.escuela} para ${remitenteId}`);
+          if (convFull?.beca_id !== beca.id) {
+            await supabase.from('conversaciones').update({ beca_id: beca.id }).eq('id', convExist.id);
+          }
+          // Guardar la escuela sirve además para la variable {escuela} de las plantillas
+          if (prosExist?.id && !freshPros.escuela) {
+            await supabase.from('prospectos').update({ escuela: beca.escuela }).eq('id', prosExist.id);
+            freshPros.escuela = beca.escuela;
+          }
+        }
+      }
+    } catch (eBeca) {
+      console.error('Error cargando becas de convenio:', eBeca.message);
+    }
+
     const contextoCrm = `CONTEXTO ACTUAL DEL PROSPECTO:
         Fecha de Hoy: ${fechaActualTexto}
         Nombre Alumno: ${freshPros.nombre_alumno || freshPros.nombre || "Desconocido"}
@@ -775,7 +802,8 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
         IMPORTANTE: Si ya conoces estos datos, NO los preguntes de nuevo. Solo avanza al siguiente paso del flujo.
         
         ${anuncioContexto}
-        
+        ${becaContexto}
+
         ${huboIntervencionHumana ? resumenHandover : ""}
         
         TRANSICIÓN AGENTE-BOT: En el historial verás mensajes marcados como [MENSAJE DEL ASESOR HUMANO]. Esto significa que un asesor humano intervino en la conversación. Debes:
@@ -872,7 +900,8 @@ NOTA: El anuncio no está configurado aún en el ERP, pero el usuario viene con 
 
     // Guardia: una cifra de dinero que no está en la tabla de cursos es un precio inventado.
     // Mejor transferir a un asesor que enviarla.
-    const cifrasInventadas = intencion === "TRANSFER_HUMANO" ? [] : cifrasNoAutorizadas(respuesta, tablaDinamicaCursos);
+    // Las cifras de la beca por convenio también son datos autorizados
+    const cifrasInventadas = intencion === "TRANSFER_HUMANO" ? [] : cifrasNoAutorizadas(respuesta, tablaDinamicaCursos + becaContexto);
     if (cifrasInventadas.length > 0) {
       console.warn(`🛡️ [GUARDIA] Alex iba a dar cifras no autorizadas (${cifrasInventadas.join(", ")}) a ${remitenteId}. Se transfiere a asesor.`);
       respuesta = MENSAJE_SIN_DATO;
