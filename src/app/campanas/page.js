@@ -184,7 +184,7 @@ export default function PaginaCampanas() {
         />
       )
     },
-    { nombre: 'imagen_url', etiqueta: 'Imagen de la campaña (URL o archivo)', tipo: 'image_upload', placeholder: 'https://...', requerido: false },
+    { nombre: 'imagen_url', etiqueta: 'Archivo del encabezado (imagen; para video o PDF pega su URL)', tipo: 'image_upload', placeholder: 'https://...', requerido: false },
     { nombre: 'mensaje', etiqueta: 'Notas Internas', tipo: 'textarea', placeholder: 'Notas sobre esta campaña...', requerido: false },
     {
       nombre: 'estado', etiqueta: 'Estado', tipo: 'select', requerido: false,

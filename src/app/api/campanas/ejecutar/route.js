@@ -225,8 +225,15 @@ export async function POST(solicitud) {
 
         if (headerComp?.format === 'DOCUMENT' || headerComp?.format === 'VIDEO') {
           const formato = headerComp.format.toLowerCase()
-          const archivo = formato === 'document' ? 'dummy.pdf' : 'dummy.mp4'
-          payload.template.components.unshift({ type: 'header', parameters: [{ type: formato, [formato]: { link: `https://erp-total-english.vercel.app/${archivo}` } }] })
+          const archivo = (campana.imagen_url || '').trim()
+          // Antes mandaba un dummy.mp4 que no existe: mejor avisar que enviar un archivo roto
+          if (!archivo) {
+            return NextResponse.json({
+              error: `La plantilla "${campana.nombre_plantilla}" lleva un ${formato === 'video' ? 'video' : 'documento'} en el encabezado. Edita la campaña y pon su URL en el campo de archivo del encabezado.`,
+            }, { status: 400 })
+          }
+          const enlace = archivo.startsWith('http') ? archivo : `${baseUrl}${archivo.startsWith('/') ? '' : '/'}${archivo}`
+          payload.template.components.unshift({ type: 'header', parameters: [{ type: formato, [formato]: { link: enlace } }] })
         }
       }
 
