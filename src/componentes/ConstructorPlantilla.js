@@ -87,8 +87,8 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
 
     if (tipoHeader === 'text' && headerText) {
       components.push({ type: 'HEADER', format: 'TEXT', text: headerText })
-    } else if (tipoHeader === 'image' && headerHandle) {
-      components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerHandle] } })
+    } else if ((tipoHeader === 'image' || tipoHeader === 'video') && headerHandle) {
+      components.push({ type: 'HEADER', format: tipoHeader.toUpperCase(), example: { header_handle: [headerHandle] } })
     }
 
     if (body) {
@@ -147,7 +147,9 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
     setError(''); setExito('')
     if (!nombre.trim()) { setError('Ingresa un nombre para la plantilla'); return }
     if (!body.trim()) { setError('El cuerpo del mensaje es requerido'); return }
-    if (tipoHeader === 'image' && !headerHandle) { setError('Por favor sube una imagen para el encabezado'); return }
+    if ((tipoHeader === 'image' || tipoHeader === 'video') && !headerHandle) {
+      setError(`Por favor sube ${tipoHeader === 'video' ? 'un video' : 'una imagen'} para el encabezado`); return
+    }
     if (variablesUnicas.length > 0) {
       for (const v of variablesUnicas) {
         if (!ejemplosVars[v]?.trim()) { setError(`Ingresa un ejemplo para la variable {{${v}}}`); return }
@@ -228,7 +230,7 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Encabezado (Opcional)</label>
               <div className="flex gap-2 mb-2">
-                {[{v:'none',l:'Sin encabezado',i:'block'},{v:'text',l:'Texto',i:'title'},{v:'image',l:'Imagen',i:'image'}].map(t => (
+                {[{v:'none',l:'Sin encabezado',i:'block'},{v:'text',l:'Texto',i:'title'},{v:'image',l:'Imagen',i:'image'},{v:'video',l:'Video',i:'movie'}].map(t => (
                   <button key={t.v} onClick={() => setTipoHeader(t.v)}
                     className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${tipoHeader === t.v ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
                     <span className="material-symbols-outlined text-[14px]">{t.i}</span>{t.l}
@@ -239,12 +241,12 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
                 <input value={headerText} onChange={e => setHeaderText(e.target.value)} maxLength={60}
                   placeholder="Título del mensaje (máx 60 caracteres)" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-100 outline-none"/>
               )}
-              {tipoHeader === 'image' && (
+              {(tipoHeader === 'image' || tipoHeader === 'video') && (
                 <div className="space-y-2">
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/png"
+                    accept={tipoHeader === 'video' ? 'video/mp4' : 'image/jpeg,image/png'}
                     className="hidden"
                     onChange={e => { if (e.target.files?.[0]) subirImagenHeader(e.target.files[0]) }}
                   />
@@ -256,7 +258,9 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
                     <span className="material-symbols-outlined text-[18px]">
                       {subiendoImagen ? 'hourglass_empty' : 'upload'}
                     </span>
-                    {subiendoImagen ? 'Subiendo imagen a Meta...' : 'Seleccionar imagen (JPG / PNG, máx 5MB)'}
+                    {subiendoImagen
+                      ? 'Subiendo archivo a Meta...'
+                      : tipoHeader === 'video' ? 'Seleccionar video (MP4, máx 16MB)' : 'Seleccionar imagen (JPG / PNG, máx 5MB)'}
                   </button>
                   {headerHandle && (
                     <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -264,7 +268,9 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
                       <span className="text-xs text-green-700 font-semibold truncate">{imagenNombre} — lista para enviar</span>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-400">La imagen se sube a Meta y se usa como muestra en la revisión de la plantilla.</p>
+                  <p className="text-[10px] text-slate-400">
+                    El archivo se sube a Meta y se usa como muestra en la revisión. Al enviar la campaña, pon la URL del {tipoHeader === 'video' ? 'video' : 'archivo'} en &quot;Archivo del encabezado&quot;.
+                  </p>
                 </div>
               )}
             </div>
@@ -377,10 +383,10 @@ export default function ConstructorPlantilla({ onClose, onCreated }) {
                     <img src={headerImageUrl} alt="Header" className="w-full h-full object-cover" onError={e => e.target.style.display='none'}/>
                   </div>
                 )}
-                {tipoHeader === 'image' && !headerImageUrl && (
+                {(tipoHeader === 'image' || tipoHeader === 'video') && !headerImageUrl && (
                   <div className="w-full h-40 bg-gradient-to-br from-slate-100 to-slate-200 flex flex-col items-center justify-center gap-2">
-                    <span className="material-symbols-outlined text-4xl text-slate-300">image</span>
-                    <p className="text-[10px] text-slate-400">Imagen de encabezado</p>
+                    <span className="material-symbols-outlined text-4xl text-slate-300">{tipoHeader === 'video' ? 'movie' : 'image'}</span>
+                    <p className="text-[10px] text-slate-400">{tipoHeader === 'video' ? 'Video' : 'Imagen'} de encabezado</p>
                   </div>
                 )}
 

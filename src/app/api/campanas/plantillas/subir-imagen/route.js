@@ -49,12 +49,15 @@ export async function POST(request) {
     const buffer = Buffer.from(arrayBuffer)
     const mimeType = file.type || 'image/jpeg'
 
-    const tiposPermitidos = ['image/jpeg', 'image/jpg', 'image/png']
+    // Meta acepta imagen o video como muestra del encabezado de la plantilla
+    const tiposPermitidos = ['image/jpeg', 'image/jpg', 'image/png', 'video/mp4', 'video/3gpp']
     if (!tiposPermitidos.includes(mimeType)) {
       return NextResponse.json({ error: 'Solo se permiten imágenes JPG y PNG' }, { status: 400 })
     }
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: 'La imagen no puede superar los 5MB' }, { status: 400 })
+    const esVideo = mimeType.startsWith('video/')
+    const maxMB = esVideo ? 16 : 5
+    if (file.size > maxMB * 1024 * 1024) {
+      return NextResponse.json({ error: `${esVideo ? 'El video' : 'La imagen'} no puede superar los ${maxMB}MB` }, { status: 400 })
     }
 
     // === PASO 1: Crear sesión de upload (Resumable Upload API) ===
