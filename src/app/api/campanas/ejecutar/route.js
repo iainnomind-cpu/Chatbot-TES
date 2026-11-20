@@ -1,6 +1,7 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 import axios from 'axios'
+import { construirPayload, variablesDe, tokensSinDato } from '@/lib/plantillasWhatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +56,7 @@ export async function POST(solicitud) {
       console.log('📌 Usando prospectos_ids personalizados');
       const { data: pDatos, error: errP } = await supabase
         .from('prospectos')
-        .select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal')
+        .select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal, escuela')
         .in('id', cuerpoSolicitud.prospectos_ids);
 
       if (errP) return NextResponse.json({ error: 'Error obteniendo audiencia: ' + errP.message }, { status: 500 });
@@ -69,7 +70,7 @@ export async function POST(solicitud) {
 
       // El canal se revisa después: los prospectos importados o creados a mano pueden
       // traer el canal vacío y antes quedaban fuera sin explicación
-      let query = supabase.from('prospectos').select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal');
+      let query = supabase.from('prospectos').select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal, escuela');
 
       if (aud.prospectos_incluidos && aud.prospectos_incluidos.length > 0) {
         query = query.in('id', aud.prospectos_incluidos);
@@ -86,7 +87,7 @@ export async function POST(solicitud) {
       candidatos = pros || [];
     } else {
       // Audiencia Estática Tradicional (filtros directos en la campaña)
-      let query = supabase.from('prospectos').select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal')
+      let query = supabase.from('prospectos').select('id, telefono, nombre, nombre_alumno, estado, curso_interes, canal, escuela')
 
       if (campana.publico_estado && campana.publico_estado !== 'Todos') {
         const dbEstado = campana.publico_estado.toLowerCase().replace(' ', '_')
@@ -147,6 +148,7 @@ export async function POST(solicitud) {
     }
 
     let enviadosExitosos = 0
+    const omitidosSinDato = []
 
     // Loop seguro para enviar mensajes
     for (const prospecto of prospectos) {
@@ -194,95 +196,37 @@ export async function POST(solicitud) {
           };
         }
       } else {
-        // Estructura para WhatsApp (Plantillas Aprobadas)
-        let bodyParams = [];
-        if (templateMeta) {
-          const bodyComp = templateMeta.components?.find(c => c.type === 'BODY');
-          if (bodyComp && bodyComp.text) {
-             let numVars = 0;
-             // Meta nos dice exactamente cuántas variables espera en el example
-             if (bodyComp.example?.body_text?.[0]) {
-               numVars = bodyComp.example.body_text[0].length;
-             } else {
-               // Fallback a regex si Meta no incluyó examples
-               const uniqueVars = [...new Set([...bodyComp.text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1]))];
-               numVars = uniqueVars.length;
-             }
-             
-             const allVars = [
-               prospecto.nombre_alumno || prospecto.nombre || "Estimado/a",
-               campana.nombre || "nuestro evento",
-               uniqueLink,
-               "Detalles",
-               "Más información"
-             ];
-             for(let i = 0; i < numVars; i++) {
-               bodyParams.push({ type: "text", text: allVars[i] || "Dato" });
-             }
-          }
-        } else {
-          // Fallback
-          bodyParams = [
-             { type: "text", text: prospecto.nombre_alumno || prospecto.nombre || "Estimado/a" },
-             { type: "text", text: campana.nombre || "nuestro evento" },
-             { type: "text", text: uniqueLink }
-          ];
+        // Plantilla con los mismos comodines que al enviar desde Prospectos: {nombre}, {escuela} y {link}
+        if (!templateMeta) {
+          return NextResponse.json({ error: 'No se pudo leer la plantilla en Meta. Revisa que siga aprobada y vuelve a intentar.' }, { status: 400 })
+        }
+        const variablesPlantilla = variablesDe(templateMeta.components?.find(c => c.type === 'BODY')?.text)
+        const valoresCampana = (campana.variables || []).map(v => String(v ?? '').split('{link}').join(uniqueLink))
+        if (valoresCampana.filter(v => v.trim()).length < variablesPlantilla.length) {
+          return NextResponse.json({
+            error: `La plantilla "${campana.nombre_plantilla}" usa ${variablesPlantilla.length} variable(s) y esta campaña no las tiene configuradas. Edítala y llena los valores: puedes usar {nombre}, {escuela} y {link}.`,
+          }, { status: 400 })
         }
 
-        payload = {
-          messaging_product: 'whatsapp',
-          to: to,
-          type: 'template',
-          template: { 
-            name: campana.nombre_plantilla, 
-            language: { code: templateMeta?.language || 'es_MX' },
-            components: []
-          }
+        // Mejor saltarlo que mandar la plantilla con un hueco ("visita a -")
+        const faltantes = tokensSinDato(valoresCampana, prospecto)
+        if (faltantes.length > 0) {
+          omitidosSinDato.push(`${prospecto.nombre_alumno || prospecto.nombre || to} (sin ${faltantes.join(' ni ')})`)
+          continue
         }
 
-        if (bodyParams.length > 0) {
-           payload.template.components.push({
-             type: "body",
-             parameters: bodyParams
-           });
+        const headerComp = templateMeta.components?.find(c => c.type === 'HEADER')
+        let imagenEncabezado = null
+        if (headerComp?.format === 'IMAGE') {
+          const img = (campana.imagen_url || '').trim() || 'https://placehold.co/600x400/png?text=Notificacion'
+          imagenEncabezado = img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`
         }
+        payload = construirPayload({ to, plantilla: templateMeta, valores: valoresCampana, imagenUrl: imagenEncabezado, prospecto })
 
-        // Determinar si la plantilla requiere Header
-        if (templateMeta) {
-          const headerComp = templateMeta.components?.find(c => c.type === 'HEADER');
-          if (headerComp) {
-            if (headerComp.format === 'IMAGE') {
-              // El logo.png no existe en public, usamos un placeholder confiable para que Meta no rechace por 404
-              const fallbackUrl = 'https://placehold.co/600x400/png?text=Notificacion';
-              const imgUrl = campana.imagen_url ? campana.imagen_url : fallbackUrl;
-              const finalImageUrl = imgUrl.startsWith('http') ? imgUrl : `${baseUrl}${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`;
-              payload.template.components.push({
-                type: "header",
-                parameters: [{ type: "image", image: { link: finalImageUrl } }]
-              });
-            } else if (headerComp.format === 'DOCUMENT') {
-              // Si acaso tuviera documento
-              payload.template.components.push({
-                type: "header",
-                parameters: [{ type: "document", document: { link: 'https://erp-total-english.vercel.app/dummy.pdf' } }]
-              });
-            } else if (headerComp.format === 'VIDEO') {
-              payload.template.components.push({
-                type: "header",
-                parameters: [{ type: "video", video: { link: 'https://erp-total-english.vercel.app/dummy.mp4' } }]
-              });
-            }
-          }
-        } else {
-          // Fallback heredado
-          if (campana.imagen_url && campana.imagen_url.trim() !== '') {
-            const isUrlExterna = campana.imagen_url.startsWith('http');
-            const finalImageUrl = isUrlExterna ? campana.imagen_url : `${baseUrl}${campana.imagen_url.startsWith('/') ? '' : '/'}${campana.imagen_url}`;
-            payload.template.components.push({
-              type: "header",
-              parameters: [{ type: "image", image: { link: finalImageUrl } }]
-            });
-          }
+        if (headerComp?.format === 'DOCUMENT' || headerComp?.format === 'VIDEO') {
+          const formato = headerComp.format.toLowerCase()
+          const archivo = formato === 'document' ? 'dummy.pdf' : 'dummy.mp4'
+          payload.template.components.unshift({ type: 'header', parameters: [{ type: formato, [formato]: { link: `https://erp-total-english.vercel.app/${archivo}` } }] })
         }
       }
 
@@ -320,6 +264,7 @@ export async function POST(solicitud) {
 
     return NextResponse.json({ 
       mensaje: 'Campaña ejecutada satisfactoriamente', 
+      omitidos_sin_dato: omitidosSinDato, 
       alcance_esperado: prospectos.length,
       envios_exitosos: enviadosExitosos,
       campana: campanaActualizada

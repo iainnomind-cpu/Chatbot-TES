@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import ModalFormulario from '@/componentes/ModalFormulario'
 import SelectorDestinatarios from '@/componentes/SelectorDestinatarios'
+import { variablesDe, textoFinal, TOKEN_NOMBRE, TOKEN_ESCUELA } from '@/lib/plantillasWhatsapp'
 import ConstructorPlantilla from '@/componentes/ConstructorPlantilla'
 
 
@@ -39,6 +40,16 @@ export default function PaginaCampanas() {
   const [escuelaImportar, setEscuelaImportar] = useState('')
   // A quién se le envía la campaña: personas marcadas aquí o un segmento ya guardado
   const [destinatarios, setDestinatarios] = useState({ modo: 'personas', ids: [], audiencia_id: '' })
+  // Plantilla de la campaña y el valor de cada una de sus variables
+  const [plantillaCampana, setPlantillaCampana] = useState({ nombre: '', valores: [] })
+
+  const elegirPlantillaCampana = (nombre, valoresGuardados = null) => {
+    const plantilla = plantillasMeta.find(p => p.name === nombre)
+    const variables = variablesDe(plantilla?.components?.find(c => c.type === 'BODY')?.text)
+    // Lo más común: la primera variable es el nombre y la segunda la escuela
+    const porDefecto = variables.map((_, i) => (i === 0 ? TOKEN_NOMBRE : i === 1 ? TOKEN_ESCUELA : ''))
+    setPlantillaCampana({ nombre, valores: variables.map((_, i) => valoresGuardados?.[i] ?? porDefecto[i]) })
+  }
   const [importando, setImportando] = useState(false)
   const [resultadoImportar, setResultadoImportar] = useState(null)
 
@@ -70,19 +81,50 @@ export default function PaginaCampanas() {
       ]
     },
     {
-      nombre: 'nombre_plantilla',
-      etiqueta: 'Plantilla de WhatsApp (Meta)',
-      tipo: 'select',
-      placeholder: '— Selecciona una plantilla aprobada —',
-      opciones: [
-        ...plantillasMeta
-          .filter(p => p.status === 'APPROVED')
-          .map(p => ({ valor: p.name, etiqueta: `✓ ${p.name}` })),
-        ...plantillasMeta
-          .filter(p => p.status !== 'APPROVED')
-          .map(p => ({ valor: p.name, etiqueta: `⏳ ${p.name} (${p.status})` })),
-      ],
-      requerido: false
+      nombre: 'plantilla', etiqueta: 'Plantilla de WhatsApp (Meta)', tipo: 'custom',
+      render: () => {
+        const elegida = plantillasMeta.find(p => p.name === plantillaCampana.nombre)
+        const variables = variablesDe(elegida?.components?.find(c => c.type === 'BODY')?.text)
+        const ejemplo = prospectosAud.find(p => destinatarios.ids.includes(p.id)) || prospectosAud[0] || {}
+        const valoresVistaPrevia = plantillaCampana.valores.map(v => (v || '').split('{link}').join('(liga de seguimiento)'))
+        return (
+          <div className="space-y-2">
+            <select
+              value={plantillaCampana.nombre}
+              onChange={e => elegirPlantillaCampana(e.target.value)}
+              aria-label="Plantilla de WhatsApp"
+              className="w-full rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm p-3"
+            >
+              <option value="">— Selecciona una plantilla aprobada —</option>
+              {plantillasMeta.filter(p => p.status === 'APPROVED').map(p => <option key={p.id} value={p.name}>✓ {p.name}</option>)}
+              {plantillasMeta.filter(p => p.status !== 'APPROVED').map(p => <option key={p.id} value={p.name}>⏳ {p.name} ({p.status})</option>)}
+            </select>
+
+            {variables.map((v, i) => (
+              <label key={v} className="block">
+                <span className="text-[11px] font-bold text-slate-500">{`Variable {{${v}}}`}</span>
+                <input
+                  value={plantillaCampana.valores[i] || ''}
+                  onChange={e => setPlantillaCampana(prev => ({ ...prev, valores: prev.valores.map((x, j) => (j === i ? e.target.value : x)) }))}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+            ))}
+
+            {variables.length > 0 && (
+              <>
+                <p className="text-[11px] text-slate-400">
+                  Comodines: <strong>{TOKEN_NOMBRE}</strong> el nombre de cada persona, <strong>{TOKEN_ESCUELA}</strong> su escuela o prepa y <strong>{'{link}'}</strong> la liga de seguimiento.
+                </p>
+                <div className="bg-[#d9fdd3] rounded-xl p-3 text-[13px] text-[#111b21] whitespace-pre-wrap">
+                  <span className="block text-[10px] font-bold text-slate-500 mb-1">Vista previa</span>
+                  {textoFinal(elegida, valoresVistaPrevia, ejemplo)}
+                </div>
+              </>
+            )}
+          </div>
+        )
+      }
     },
     {
       nombre: 'destinatarios', etiqueta: '¿A quién se le envía?', tipo: 'custom',
@@ -274,6 +316,11 @@ export default function PaginaCampanas() {
       if (destinatarios.modo === 'personas' && destinatarios.ids.length === 0) {
         return alert('Marca al menos una persona, o elige un segmento guardado.')
       }
+      if (plantillaCampana.valores.some(v => !String(v || '').trim())) {
+        return alert('Llena el valor de todas las variables de la plantilla.')
+      }
+      datos.nombre_plantilla = plantillaCampana.nombre || null
+      datos.variables = plantillaCampana.valores
       datos.audiencia_id = await resolverAudiencia(datos.nombre)
       const respuesta = await fetch('/api/campanas', {
         method: 'POST',
@@ -294,6 +341,11 @@ export default function PaginaCampanas() {
 
   const editarCampana = async (datos) => {
     try {
+      if (plantillaCampana.valores.some(v => !String(v || '').trim())) {
+        return alert('Llena el valor de todas las variables de la plantilla.')
+      }
+      datos.nombre_plantilla = plantillaCampana.nombre || null
+      datos.variables = plantillaCampana.valores
       datos.audiencia_id = await resolverAudiencia(datos.nombre) ?? datos.audiencia_id ?? null
       const respuesta = await fetch('/api/campanas', {
         method: 'PATCH',
@@ -390,6 +442,7 @@ export default function PaginaCampanas() {
 
   const abrirEditar = (campana) => {
     setCampanaEditando(campana)
+    elegirPlantillaCampana(campana.nombre_plantilla || '', campana.variables)
     setDestinatarios(campana.audiencia_id
       ? { modo: 'segmento', ids: [], audiencia_id: campana.audiencia_id }
       : { modo: 'personas', ids: [], audiencia_id: '' })
@@ -662,7 +715,7 @@ export default function PaginaCampanas() {
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h2 className="text-xl font-bold text-slate-800">Campañas Automatizadas</h2>
                 <button
-                  onClick={() => { setCampanaEditando(null); setDestinatarios({ modo: 'personas', ids: [], audiencia_id: '' }); setModalAbierto(true); }}
+                  onClick={() => { setCampanaEditando(null); setDestinatarios({ modo: 'personas', ids: [], audiencia_id: '' }); setPlantillaCampana({ nombre: '', valores: [] }); setModalAbierto(true); }}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg shadow-sm shadow-blue-500/30 flex items-center gap-2 transition-all"
                 >
                   <span className="material-symbols-outlined text-[20px]">add</span>

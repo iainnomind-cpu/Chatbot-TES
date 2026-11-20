@@ -30,7 +30,9 @@ export async function POST(solicitud) {
     publico_estado: cuerpo.publico_estado || 'Todos',
     publico_curso: cuerpo.publico_curso || 'Todos',
     audiencia_id: cuerpo.audiencia_id || null,
-    nombre_plantilla: cuerpo.nombre_plantilla || null
+    nombre_plantilla: cuerpo.nombre_plantilla || null,
+    // Valores de las variables de la plantilla, con comodines {nombre} / {escuela} / {link}
+    variables: Array.isArray(cuerpo.variables) ? cuerpo.variables : null
   }
 
   const { data: campana, error } = await supabase
